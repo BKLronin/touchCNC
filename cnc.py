@@ -37,19 +37,37 @@ def grblConnect2():
 
     # Stream g-code to grbl
     #Stream GCODE from -https://onehossshay.wordpress.com/2011/08/26/grbl-a-simple-python-interface/-
+    
 
-def displayPosition(grbl):
-    grbl_command = '?'
-    grbl.write(str.encode(grbl_command + '\n'))
-    position = grbl.readline()
-    print("position", position)
+def displayPosition():    
+    if grbl != 0:
+        grbl_command = '?'   
+        grbl.write(str.encode(grbl_command))
+        position = str(grbl.readline())
+        #print(position)
+        position = position.replace('Idle|', ',')
+        position = position.replace('WPos:', '')
+        position = position.replace('|', ',')  
+        position.strip()
+        coordinates_list = position.split(',')       
+        #print(coordinates_list)
+        show_ctrl_x.config(text = coordinates_list[1]) 
+        show_ctrl_y.config(text = coordinates_list[2])
+        show_ctrl_z.config(text = coordinates_list[3])
+
+        #show_ctrl_x_w.config(text = coordinates_list[4]) 
+        #show_ctrl_y_w.config(text = coordinates_list[5])
+        #show_ctrl_z_w.config(text = coordinates_list[6])
+    else:
+        print("No Connection yet")
+    show_ctrl_x.after(1000,displayPosition)
     
 
 def jogWrite(grbl,AXIS, CMD, scale):   
     DECIMAL = [0.1,1,10,100]
     scale = increments.get()
     MOVE = int(CMD) * DECIMAL[scale -1]     
-    grbl_command = ('$J=G91' +' ' + AXIS + str(MOVE) + ' '+ 'F100')    
+    grbl_command = ('$J=G91' +' ' + AXIS + str(MOVE) + ' '+ 'F1000')    
     #print(grbl_command)
     grbl.write(str.encode(grbl_command + '\n'))
     grbl_out = grbl.readline() # Wait for grbl response with carriage return
@@ -146,21 +164,24 @@ def findEnvelope(): #get the max used Buildspace and position of the job
     coord_max = [0,1]
     coord_min = [0,1]   
 
-    for line in GCODE:        
-       
-        l = line.strip(line) # Strip all EOL characters for streaming         
+    for line in GCODE:         
+        l = line.strip(line) # Strip all EOL characters               
         l = line.replace('X', '')
         l2 = l.replace('Y', '')        
         l2 = l2.split()     
         
-        if len(l2) == 3:
-            x = l2[1]
-            x_coords.append(float(x))
-            y = l2[2]
-            y_coords.append(float(y))        
+        if len(l2) == 3: 
+            #print(l2)
+            x = l2[0]
+            if 'Z' not in x and 'X' in line and 'G0' not in x and 'G1' not in x:
+                x_coords.append(float(x))
+            y = l2[1]
+            if 'Z' not in y and 'Y' in line and 'G0' not in x and 'G1' not in x:
+                y_coords.append(float(y))        
 
     x_coords.sort()
     y_coords.sort()
+    
     coord_max[0] = max(x_coords) +50
     coord_max[1] = 350 - max(y_coords) #invertierte Buildplattform mit 0 unten links statt oben links
     coord_min[0] = min(x_coords) +50
@@ -203,10 +224,11 @@ increments = IntVar()
 left = Button(root, text="-X",  width = buttonsize_x, height = buttonsize_y, command = lambda:jogWrite(grbl, 'X', '-1', increments))
 right = Button(root, text="+X",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'X', '1', increments))
 up = Button(root, text="+Y", width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'Y', '1', increments))
-cancel = Button(root, text="cancel", width = buttonsize_x, height = buttonsize_y,bg = 'black', command = lambda:directWrite(grbl, '0x85' ))
+cancel = Button(root, text="cancel", width = buttonsize_x, height = buttonsize_y,bg = 'black', command = lambda:directWrite(grbl,'0x85'))
 down = Button(root, text="-Y",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'Y', '-1', increments))
 z_up = Button(root, text="+Z",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'Z', '1', increments) )
 z_down = Button(root, text="-Z",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'Z', '-1', increments))
+
 zero_x = Button(root, text="zero X",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite(grbl,'G92', 'X' ))
 zero_y = Button(root, text="zero Y",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite(grbl,'G92', 'Y' ))
 zero_z = Button(root, text="zero Z",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite(grbl,'G92', 'Z' ))
@@ -223,7 +245,7 @@ fopen = Button(root, text="GCODE",width = buttonsize_x , height = buttonsize_y, 
 spindle = Button(root, text="Spindle",width = buttonsize_x, height = buttonsize_y, bg = 'grey', command = lambda:latchWrite(grbl,'M3'))
 coolant = Button(root, text="Coolant",width = buttonsize_x, height = buttonsize_y,command = lambda:latchWrite(grbl,'M8') )
 tool = Button(root, text="Tool",width = buttonsize_x, height = buttonsize_y,command = lambda:latchWrite(grbl,'M6') )
-macro = Button(root, text="Macro1",width = buttonsize_x, height = buttonsize_y,command = lambda:directWrite(grbl,' G90 G1 X10 Y10 Z50 F100') )
+macro = Button(root, text="Macro1",width = buttonsize_x, height = buttonsize_y,command = lambda:directWrite(grbl,' G90 G1 X10 Y10 Z50 F1000') )
 
 step_incr1 = Radiobutton(root, text= '0,1', value = 1 , variable = increments,width = buttonsize_x, height = buttonsize_y, indicatoron = 0 )
 step_incr2 = Radiobutton(root, text= '1', value = 2 , variable = increments,width = buttonsize_x, height = buttonsize_y, indicatoron = 0 )
@@ -238,9 +260,15 @@ terminal_recv = Canvas(root, width = 200, height =400, bg = 'white')
 show_ctrl_x_label = Label(root,text = "X")
 show_ctrl_y_label = Label(root,text = "Y")
 show_ctrl_z_label = Label(root,text = "Z")
-show_ctrl_x =Label(root, text = "X ", width = 10, height = 2, bg ='white', relief = SUNKEN)
-show_ctrl_y =Label(root, text = "Y ", width = 10, height = 2, bg ='white', relief = SUNKEN)
-show_ctrl_z =Label(root, text = "Z ", width = 10, height = 2, bg ='white', relief = SUNKEN)
+show_ctrl_x =Label(root, text = "X_POS", width = 8, height = 2, bg ='white', relief = SUNKEN)
+show_ctrl_y =Label(root, text = "Y_POS", width = 8, height = 2, bg ='white', relief = SUNKEN)
+show_ctrl_z =Label(root, text = "Z_POS", width = 8, height = 2, bg ='white', relief = SUNKEN)
+
+show_ctrl_x_w =Label(root, text = "X_POS_W", width = 8, height = 2, bg ='white', relief = SUNKEN)
+show_ctrl_y_w =Label(root, text = "Y_POS_W", width = 8, height = 2, bg ='white', relief = SUNKEN)
+show_ctrl_z_w =Label(root, text = "Z_POS_W", width = 8, height = 2, bg ='white', relief = SUNKEN)
+
+show_ctrl_x.after(100, displayPosition)
 
 feed_control = Scale(root, orient = HORIZONTAL, length = 400, label = "Feedrate",tickinterval = 20)
 
@@ -281,6 +309,10 @@ show_ctrl_z_label.grid(row=5, column=0,padx=3, pady=10)
 show_ctrl_x.grid(row=3, column=1,padx=0, pady=0, columnspan =1)
 show_ctrl_y.grid(row=4, column=1,padx=0, pady=0, columnspan =1)
 show_ctrl_z.grid(row=5, column=1,padx=0, pady=0, columnspan =1)
+
+show_ctrl_x_w.grid(row=3, column=2,padx=0, pady=0, columnspan =1)
+show_ctrl_y_w.grid(row=4, column=2,padx=0, pady=0, columnspan =1)
+show_ctrl_z_w.grid(row=5, column=2,padx=0, pady=0, columnspan =1)
 
 zero_x.grid(row=6, column=0,padx=10, pady=10)
 zero_y.grid(row=6, column=1,padx=10, pady=10)
