@@ -27,7 +27,7 @@ def grblConnect2():
                 grbl.write(str.encode("\r\n\r\n"))
                 time.sleep(2)   # Wait for grbl to initialize
                 grbl.flushInput()  # Flush startup text in serial input
-                connect_ser.config(bg='green')
+                connect_ser.config(bg='#A2D729')
                 #print("connected")
 
                 break
@@ -87,14 +87,14 @@ def latchWrite(grbl, CMD):
     if states[CMD] == '0':
         states[CMD] = '1'        
         if CMD == 'M3':
-            spindle.config(bg='red')
+            spindle.config(bg='#A31621')
         if CMD == 'M6':
-            tool.config(bg = 'yellow')
+            tool.config(bg = '#E0CA3C')
 
     else:
         states[CMD] ='0'
         if CMD == 'M3':
-            spindle.config(bg='green')
+            spindle.config(bg='#A2D729')
         if CMD == 'M6':
             tool.config(bg='grey')
     
@@ -104,7 +104,7 @@ def latchWrite(grbl, CMD):
     if CMD == 'M8':
         if states['M8'] == '1':
             grbl_command = (CMD)
-            coolant.config(bg ='blue')
+            coolant.config(bg ='#1F7A8C')
         else:
             grbl_command = ('M7')
             coolant.config(bg ='grey')
@@ -151,7 +151,7 @@ def openGCODE():
     GCODE = fd.askopenfile(title='Open a file', initialdir='/home/thomash/Environments/cnc/', filetypes=filetypes)
     
     if GCODE != 0:
-        fopen.config(bg='green')
+        fopen.config(bg='#A2D729')
     else:
         fopen.config(bg = 'grey')
       
@@ -189,7 +189,7 @@ def findEnvelope(): #get the max used Buildspace and position of the job
 
     return coord_min, coord_max
 
-def grblWrite(grbl):   
+def grblWrite(grbl, GCODE):   
     #print("write1")
     GCODE.seek(0)                
     for line in GCODE:
@@ -218,13 +218,16 @@ increments = 0
 root = Tk()
 root.title('touchCNC')
 root.geometry('1024x600+0+0')
+root.resizable(False,False)
+root.tk_setPalette(background='#17203b', foreground='white',activeBackground='#283867', activeForeground='white' )
+
 
 increments = IntVar()
 
 left = Button(root, text="-X",  width = buttonsize_x, height = buttonsize_y, command = lambda:jogWrite(grbl, 'X', '-1', increments))
 right = Button(root, text="+X",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'X', '1', increments))
 up = Button(root, text="+Y", width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'Y', '1', increments))
-cancel = Button(root, text="cancel", width = buttonsize_x, height = buttonsize_y,bg = 'black', command = lambda:directWrite(grbl,'0x85'))
+cancel = Button(root, text="cancel", width = buttonsize_x, height = buttonsize_y,bg = 'black', command = lambda:directWrite(grbl,'à'))
 down = Button(root, text="-Y",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'Y', '-1', increments))
 z_up = Button(root, text="+Z",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'Z', '1', increments) )
 z_down = Button(root, text="-Z",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'Z', '-1', increments))
@@ -237,9 +240,9 @@ zero_all =Button(root, text="zero All",width = buttonsize_x, height = buttonsize
 connect_ser = Button(root, text="Cnnct",width = buttonsize_x, height = buttonsize_y, command = grblConnect2, bg = 'grey')
 discon_ser = Button(root, text="Dsconct",width = buttonsize_x, height = buttonsize_y, command = lambda:grblClose(grbl))
 unlock = Button(root, text="Unlock",width = buttonsize_x, height = buttonsize_y, command = lambda:directWrite(grbl, '$X'))
-start = Button(root, text="START",width = buttonsize_x, height = buttonsize_y, bg = 'red', command = lambda: grblWrite(grbl))
+start = Button(root, text="START",width = buttonsize_x, height = buttonsize_y, bg = '#A31621', command = lambda: grblWrite(grbl,GCODE))
 stop = Button(root, text="STOP",width = buttonsize_x, height = buttonsize_y, bd= 3)
-pause = Button(root, text="PAUSE",width = buttonsize_x, height = buttonsize_y, bg = '#007fff')
+pause = Button(root, text="PAUSE",width = buttonsize_x, height = buttonsize_y, bg = '#1F7A8C')
 fopen = Button(root, text="GCODE",width = buttonsize_x , height = buttonsize_y, bg = 'grey', command = openGCODE)
 
 spindle = Button(root, text="Spindle",width = buttonsize_x, height = buttonsize_y, bg = 'grey', command = lambda:latchWrite(grbl,'M3'))
@@ -260,9 +263,9 @@ terminal_recv = Canvas(root, width = 200, height =400, bg = 'white')
 show_ctrl_x_label = Label(root,text = "X")
 show_ctrl_y_label = Label(root,text = "Y")
 show_ctrl_z_label = Label(root,text = "Z")
-show_ctrl_x =Label(root, text = "X_POS", width = 8, height = 2, bg ='white', relief = SUNKEN)
-show_ctrl_y =Label(root, text = "Y_POS", width = 8, height = 2, bg ='white', relief = SUNKEN)
-show_ctrl_z =Label(root, text = "Z_POS", width = 8, height = 2, bg ='white', relief = SUNKEN)
+show_ctrl_x =Label(root, text = "X_POS", width = 8, height = 2, bg ='white', relief = SUNKEN, fg= 'black')
+show_ctrl_y =Label(root, text = "Y_POS", width = 8, height = 2, bg ='white', relief = SUNKEN, fg= 'black')
+show_ctrl_z =Label(root, text = "Z_POS", width = 8, height = 2, bg ='white', relief = SUNKEN, fg= 'black')
 
 show_ctrl_x_w =Label(root, text = "X_POS_W", width = 8, height = 2, bg ='white', relief = SUNKEN)
 show_ctrl_y_w =Label(root, text = "Y_POS_W", width = 8, height = 2, bg ='white', relief = SUNKEN)
