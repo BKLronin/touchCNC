@@ -9,6 +9,7 @@ i = 10
 GCODE = 0
 AXIS = 'X'
 states = {'M3': '0', 'M8':'0', 'M6':'0'} #Spindle, Coolant
+BORDER = 2
 
 def grblConnect2():
     global grbl
@@ -218,32 +219,32 @@ increments = 0
 root = Tk()
 root.title('touchCNC')
 root.geometry('1024x600+0+0')
-root.resizable(False,False)
-root.tk_setPalette(background='#17203b', foreground='white',activeBackground='#283867', activeForeground='white' )
+root.resizable(False,False)#17203b
+root.tk_setPalette(background='#11192C', foreground='white',activeBackground='#283867', activeForeground='white' )
 
 
 increments = IntVar()
+movement = Frame(root, relief = 'ridge', bd = BORDER)
+left = Button(root, text="-X",  width = buttonsize_x, height = buttonsize_y, command = lambda:jogWrite(grbl, 'X', '-1', increments),bd = BORDER)
+right = Button(root, text="+X",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'X', '1', increments),bd = BORDER)
+up = Button(root, text="+Y", width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'Y', '1', increments),bd = BORDER)
+cancel = Button(root, text="cancel", width = buttonsize_x, height = buttonsize_y,bg = 'black', command = lambda:directWrite(grbl,'à'),bd = BORDER)
+down = Button(root, text="-Y",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'Y', '-1', increments),bd = BORDER)
+z_up = Button(root, text="+Z",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'Z', '1', increments) ,bd = BORDER)
+z_down = Button(root, text="-Z",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'Z', '-1', increments),bd = BORDER)
 
-left = Button(root, text="-X",  width = buttonsize_x, height = buttonsize_y, command = lambda:jogWrite(grbl, 'X', '-1', increments))
-right = Button(root, text="+X",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'X', '1', increments))
-up = Button(root, text="+Y", width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'Y', '1', increments))
-cancel = Button(root, text="cancel", width = buttonsize_x, height = buttonsize_y,bg = 'black', command = lambda:directWrite(grbl,'à'))
-down = Button(root, text="-Y",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'Y', '-1', increments))
-z_up = Button(root, text="+Z",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'Z', '1', increments) )
-z_down = Button(root, text="-Z",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'Z', '-1', increments))
+zero_x = Button(root, text="zero X",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite(grbl,'G92', 'X' ),bd = BORDER)
+zero_y = Button(root, text="zero Y",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite(grbl,'G92', 'Y' ),bd = BORDER)
+zero_z = Button(root, text="zero Z",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite(grbl,'G92', 'Z' ),bd = BORDER)
+zero_all =Button(root, text="zero All",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite(grbl,'G92', 'XYZ'),bd = BORDER)
 
-zero_x = Button(root, text="zero X",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite(grbl,'G92', 'X' ))
-zero_y = Button(root, text="zero Y",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite(grbl,'G92', 'Y' ))
-zero_z = Button(root, text="zero Z",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite(grbl,'G92', 'Z' ))
-zero_all =Button(root, text="zero All",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite(grbl,'G92', 'XYZ'))
-
-connect_ser = Button(root, text="Cnnct",width = buttonsize_x, height = buttonsize_y, command = grblConnect2, bg = 'grey')
-discon_ser = Button(root, text="Dsconct",width = buttonsize_x, height = buttonsize_y, command = lambda:grblClose(grbl))
-unlock = Button(root, text="Unlock",width = buttonsize_x, height = buttonsize_y, command = lambda:directWrite(grbl, '$X'))
-start = Button(root, text="START",width = buttonsize_x, height = buttonsize_y, bg = '#A31621', command = lambda: grblWrite(grbl,GCODE))
-stop = Button(root, text="STOP",width = buttonsize_x, height = buttonsize_y, bd= 3)
-pause = Button(root, text="PAUSE",width = buttonsize_x, height = buttonsize_y, bg = '#1F7A8C')
-fopen = Button(root, text="GCODE",width = buttonsize_x , height = buttonsize_y, bg = 'grey', command = openGCODE)
+connect_ser = Button(root, text="Cnnct",width = buttonsize_x, height = buttonsize_y, command = grblConnect2, bg = 'grey',bd = BORDER)
+discon_ser = Button(root, text="Dsconct",width = buttonsize_x, height = buttonsize_y, command = lambda:grblClose(grbl),bd = BORDER)
+unlock = Button(root, text="Unlock",width = buttonsize_x, height = buttonsize_y, command = lambda:directWrite(grbl, '$X'),bd = BORDER)
+start = Button(root, text="START",width = buttonsize_x, height = buttonsize_y, bg = '#A31621', command = lambda: grblWrite(grbl,GCODE),bd = BORDER)
+stop = Button(root, text="STOP",width = buttonsize_x, height = buttonsize_y,bd = BORDER)
+pause = Button(root, text="PAUSE",width = buttonsize_x, height = buttonsize_y, bg = '#1F7A8C',bd = BORDER)
+fopen = Button(root, text="GCODE",width = buttonsize_x , height = buttonsize_y, bg = 'grey', command = openGCODE,bd = BORDER)
 
 spindle = Button(root, text="Spindle",width = buttonsize_x, height = buttonsize_y, bg = 'grey', command = lambda:latchWrite(grbl,'M3'))
 coolant = Button(root, text="Coolant",width = buttonsize_x, height = buttonsize_y,command = lambda:latchWrite(grbl,'M8') )
@@ -290,6 +291,7 @@ for x in range(0,400,50):
         gitter_x = mill_table.create_line(x,0,x,400)
         gitter_y = mill_table.create_line(0,y,400,y)
 
+movement.grid(row = 0, column = 0, columnspan = 3, rowspan = 1)
 left.grid(row=1, column=0, padx=3, pady=2)
 cancel.grid(row=0, column=0, padx=3, pady=2)
 right.grid(row=1, column=2,padx=3, pady=2)
