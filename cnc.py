@@ -4,12 +4,15 @@ from tkinter import *
 import serial.tools.list_ports
 from tkinter import filedialog as fd
 
+import threading
+
 grbl = 0
 i = 10
 GCODE = 0
 AXIS = 'X'
-states = {'M3': '0', 'M8':'0', 'M6':'0'} #Spindle, Coolant
+states = {'M3':'0', 'M8':'0', 'M6':'0'} #Spindle, Coolant
 BORDER = 2
+freetosend = 1
 
 def grblConnect2():
     global grbl
@@ -37,8 +40,7 @@ def grblConnect2():
                 grbl = 0
 
     # Stream g-code to grbl
-    #Stream GCODE from -https://onehossshay.wordpress.com/2011/08/26/grbl-a-simple-python-interface/-
-    
+    #Stream GCODE from -https://onehossshay.wordpress.com/2011/08/26/grbl-a-simple-python-interface/-    
 
 def displayPosition():    
     if grbl != 0:
@@ -61,29 +63,28 @@ def displayPosition():
         #show_ctrl_z_w.config(text = coordinates_list[6])
     else:
         print("No Connection yet")
-    show_ctrl_x.after(1000,displayPosition)
+    #show_ctrl_x.after(1000,displayPosition)    
+
+def debugWrite():
+    time.sleep(3)
+    print("NOW")
     
 
-def jogWrite(grbl,AXIS, CMD, scale):   
+def jogWrite(AXIS, CMD, scale):   
     DECIMAL = [0.1,1,10,100]
     scale = increments.get()
     MOVE = int(CMD) * DECIMAL[scale -1]     
     grbl_command = ('$J=G91' +' ' + AXIS + str(MOVE) + ' '+ 'F1000')    
     #print(grbl_command)
-    grbl.write(str.encode(grbl_command + '\n'))
-    grbl_out = grbl.readline() # Wait for grbl response with carriage return
-    #print(grbl_out.strip())
-    infoScreen(grbl_command)
-    infoScreen(grbl_out)
+    if freetosend == 1:
+            sendGRBL(grbl_command)
 
-def directWrite(grbl, CMD):
+def directWrite(CMD):
     grbl_command = CMD
-    grbl.write(str.encode(grbl_command + '\n'))
-    grbl_out = grbl.readline() # Wait for grbl response with carriage return
-    infoScreen(grbl_command)
-    infoScreen(grbl_out)
+    if freetosend == 1:
+            sendGRBL(grbl_command)
 
-def latchWrite(grbl, CMD):
+def latchWrite(CMD):
     global states 
     if states[CMD] == '0':
         states[CMD] = '1'        
@@ -100,8 +101,11 @@ def latchWrite(grbl, CMD):
             tool.config(bg='grey')
     
     if CMD == 'M3':
-        grbl_command = (CMD * int(states[CMD]))    
-    
+        if states['M3'] == '1':
+            grbl_command =  'M3 S1000'
+        if states['M3'] == '0':
+            grbl_command = 'M3 S0'
+          
     if CMD == 'M8':
         if states['M8'] == '1':
             grbl_command = (CMD)
@@ -115,25 +119,16 @@ def latchWrite(grbl, CMD):
     #grbl_command = (CMD * int(states[CMD]) )   
     print(grbl_command)
     print(states)
-    grbl.write(str.encode(grbl_command + '\n'))
-    grbl_out = grbl.readline() # Wait for grbl response with carriage return
-    infoScreen(grbl_command)
-    infoScreen(grbl_out)
+    sendGRBL(grbl_command)
     
-def zeroWrite(grbl, CMD, AXIS):
+def zeroWrite(CMD, AXIS):
     grbl_command = (CMD + ' ' + AXIS + '0')
-    grbl.write(str.encode(grbl_command + '\n'))
-    grbl_out = grbl.readline() # Wait for grbl response with carriage return
-    infoScreen(grbl_command)
-    infoScreen(grbl_out)
+    sendGRBL(grbl_command)
 
-def terminalWrite(grbl):
+def terminalWrite():
     grbl_command = terminal.get()
     #print(grbl_command)
-    grbl.write(str.encode(grbl_command + '\n'))
-    grbl_out = grbl.readline() # Wait for grbl response with carriage return
-    #print(grbl_out.strip())
-    infoScreen(grbl_out)
+    sendGRBL(grbl_command)
 
 def infoScreen(data):
     global i
@@ -157,7 +152,7 @@ def openGCODE():
         fopen.config(bg = 'grey')
       
     build_xy = findEnvelope()
-    mill_table.create_rectangle(build_xy[0],build_xy[1], fill = 'blue', stipple = 'gray75')     
+    mill_table.create_rectangle(build_xy[0],build_xy[1], fill = 'blue', stipple = 'gray75')       
     
 def findEnvelope(): #get the max used Buildspace and position of the job
     x_coords = []
@@ -186,22 +181,25 @@ def findEnvelope(): #get the max used Buildspace and position of the job
     coord_max[0] = max(x_coords) +50
     coord_max[1] = 350 - max(y_coords) #invertierte Buildplattform mit 0 unten links statt oben links
     coord_min[0] = min(x_coords) +50
-    coord_min[1] = 350 - min(y_coords)  
+    coord_min[1] = 350 - min(y_coords)      
 
     return coord_min, coord_max
 
-def grblWrite(grbl, GCODE):   
+def grblWrite():   
     #print("write1")
+    
     GCODE.seek(0)                
-    for line in GCODE:
+    for line in GCODE:        
         #print("write")
         l = line.strip(line) # Strip all EOL characters for streaming
-        l = line.split(";",0)      
-        grbl.write(str.encode(l[0]+ '\n')) # Send g-code block to grbl
-        grbl_out = grbl.readline() # Wait for grbl response with carriage return        
-        infoScreen(grbl_out.strip())
+        l = line.split(";",0)  
+        grbl_command = l[0]      
+        sendGRBL(grbl_command)
+        infoScreen("finished")   
+    GCODE.close()
+    fopen.config(bg = 'grey')
 
-def grblClose(grbl):
+def grblClose():
     # Close file and serial port
     #f.close()
     try:
@@ -210,6 +208,15 @@ def grblClose(grbl):
         connect_ser.config(bg='grey')
     except:
         print("Connection still open")
+
+def sendGRBL(grbl_command):
+    global freetosend    
+    #print(grbl_command)  
+    grbl.write(str.encode(grbl_command+ '\n')) # Send g-code block to grbl
+    grbl_out = grbl.readline() # Wait for grbl response with carriage return        
+    infoScreen(grbl_out)
+    
+    infoScreen("finished")        
 
 #GUI Main
 buttonsize_x = 5
@@ -225,31 +232,31 @@ root.tk_setPalette(background='#11192C', foreground='white',activeBackground='#2
 
 increments = IntVar()
 movement = Frame(root, relief = 'ridge', bd = BORDER)
-left = Button(root, text="-X",  width = buttonsize_x, height = buttonsize_y, command = lambda:jogWrite(grbl, 'X', '-1', increments),bd = BORDER)
-right = Button(root, text="+X",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'X', '1', increments),bd = BORDER)
-up = Button(root, text="+Y", width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'Y', '1', increments),bd = BORDER)
-cancel = Button(root, text="cancel", width = buttonsize_x, height = buttonsize_y,bg = 'black', command = lambda:directWrite(grbl,'à'),bd = BORDER)
-down = Button(root, text="-Y",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'Y', '-1', increments),bd = BORDER)
-z_up = Button(root, text="+Z",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'Z', '1', increments) ,bd = BORDER)
-z_down = Button(root, text="-Z",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite(grbl, 'Z', '-1', increments),bd = BORDER)
+left = Button(root, text="-X",  width = buttonsize_x, height = buttonsize_y, command = lambda:jogWrite('X', '-1', increments),bd = BORDER)
+right = Button(root, text="+X",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite('X', '1', increments),bd = BORDER)
+up = Button(root, text="+Y", width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite('Y', '1', increments),bd = BORDER)
+cancel = Button(root, text="cancel", width = buttonsize_x, height = buttonsize_y,bg = '#A31621', command = lambda:directWrite('133'),bd = BORDER)
+down = Button(root, text="-Y",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite('Y', '-1', increments),bd = BORDER)
+z_up = Button(root, text="+Z",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite('Z', '1', increments) ,bd = BORDER)
+z_down = Button(root, text="-Z",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite('Z', '-1', increments),bd = BORDER)
 
-zero_x = Button(root, text="zero X",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite(grbl,'G92', 'X' ),bd = BORDER)
-zero_y = Button(root, text="zero Y",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite(grbl,'G92', 'Y' ),bd = BORDER)
-zero_z = Button(root, text="zero Z",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite(grbl,'G92', 'Z' ),bd = BORDER)
-zero_all =Button(root, text="zero All",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite(grbl,'G92', 'XYZ'),bd = BORDER)
+zero_x = Button(root, text="zero X",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite('G92', 'X0' ),bd = BORDER)
+zero_y = Button(root, text="zero Y",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite('G92', 'Y0' ),bd = BORDER)
+zero_z = Button(root, text="zero Z",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite('G92', 'Z0' ),bd = BORDER)
+zero_all =Button(root, text="zero All",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite('G92', 'G28.1'),bd = BORDER)
 
 connect_ser = Button(root, text="Cnnct",width = buttonsize_x, height = buttonsize_y, command = grblConnect2, bg = 'grey',bd = BORDER)
-discon_ser = Button(root, text="Dsconct",width = buttonsize_x, height = buttonsize_y, command = lambda:grblClose(grbl),bd = BORDER)
-unlock = Button(root, text="Unlock",width = buttonsize_x, height = buttonsize_y, command = lambda:directWrite(grbl, '$X'),bd = BORDER)
-start = Button(root, text="START",width = buttonsize_x, height = buttonsize_y, bg = '#A31621', command = lambda: grblWrite(grbl,GCODE),bd = BORDER)
+discon_ser = Button(root, text="Dsconct",width = buttonsize_x, height = buttonsize_y, command = lambda:grblClose(),bd = BORDER)
+unlock = Button(root, text="Unlock",width = buttonsize_x, height = buttonsize_y, command = lambda:directWrite('$X'),bd = BORDER)
+start = Button(root, text="START",width = buttonsize_x, height = buttonsize_y, bg = '#A31621', command = lambda: threading.Thread(target = grblWrite).start(),bd = BORDER)
 stop = Button(root, text="STOP",width = buttonsize_x, height = buttonsize_y,bd = BORDER)
 pause = Button(root, text="PAUSE",width = buttonsize_x, height = buttonsize_y, bg = '#1F7A8C',bd = BORDER)
 fopen = Button(root, text="GCODE",width = buttonsize_x , height = buttonsize_y, bg = 'grey', command = openGCODE,bd = BORDER)
 
-spindle = Button(root, text="Spindle",width = buttonsize_x, height = buttonsize_y, bg = 'grey', command = lambda:latchWrite(grbl,'M3'))
-coolant = Button(root, text="Coolant",width = buttonsize_x, height = buttonsize_y,command = lambda:latchWrite(grbl,'M8') )
-tool = Button(root, text="Tool",width = buttonsize_x, height = buttonsize_y,command = lambda:latchWrite(grbl,'M6') )
-macro = Button(root, text="Macro1",width = buttonsize_x, height = buttonsize_y,command = lambda:directWrite(grbl,' G90 G1 X10 Y10 Z50 F1000') )
+spindle = Button(root, text="Spindle",width = buttonsize_x, height = buttonsize_y, bg = 'grey', command = lambda:latchWrite('M3'))
+coolant = Button(root, text="Coolant",width = buttonsize_x, height = buttonsize_y,command = lambda:latchWrite('M8') )
+tool = Button(root, text="Tool",width = buttonsize_x, height = buttonsize_y,command = lambda:latchWrite('M6') )
+macro = Button(root, text="Macro1",width = buttonsize_x, height = buttonsize_y,command = lambda:directWrite(' G90 G0 X10 Y10 Z50 F1000') )
 
 step_incr1 = Radiobutton(root, text= '0,1', value = 1 , variable = increments,width = buttonsize_x, height = buttonsize_y, indicatoron = 0 )
 step_incr2 = Radiobutton(root, text= '1', value = 2 , variable = increments,width = buttonsize_x, height = buttonsize_y, indicatoron = 0 )
@@ -258,7 +265,7 @@ step_incr4 = Radiobutton(root, text= '100', value = 4 , variable = increments,wi
 step_incr2.select()
 
 terminal = Entry(root, width =8, text="GCODE")
-terminal_send = Button(root, text="SEND",width = buttonsize_x, height = buttonsize_y, bd= 3, command = lambda: terminalWrite(grbl))
+terminal_send = Button(root, text="SEND",width = buttonsize_x, height = buttonsize_y, bd= 3, command = lambda: terminalWrite())
 terminal_recv = Canvas(root, width = 200, height =400, bg = 'white')
 
 show_ctrl_x_label = Label(root,text = "X")
@@ -272,7 +279,7 @@ show_ctrl_x_w =Label(root, text = "X_POS_W", width = 8, height = 2, bg ='white',
 show_ctrl_y_w =Label(root, text = "Y_POS_W", width = 8, height = 2, bg ='white', relief = SUNKEN)
 show_ctrl_z_w =Label(root, text = "Z_POS_W", width = 8, height = 2, bg ='white', relief = SUNKEN)
 
-show_ctrl_x.after(100, displayPosition)
+#threading.Thread(target= displayPosition()).start() 
 
 feed_control = Scale(root, orient = HORIZONTAL, length = 400, label = "Feedrate",tickinterval = 20)
 
@@ -293,7 +300,7 @@ for x in range(0,400,50):
 
 movement.grid(row = 0, column = 0, columnspan = 3, rowspan = 1)
 left.grid(row=1, column=0, padx=3, pady=2)
-cancel.grid(row=0, column=0, padx=3, pady=2)
+cancel.grid(row=0, column=2, padx=3, pady=2)
 right.grid(row=1, column=2,padx=3, pady=2)
 up.grid(row=0, column=1, padx=3, pady=10)
 down.grid(row=1, column=1,padx=3, pady=2)
@@ -343,6 +350,6 @@ terminal_recv.grid(row = 0, column = 8, padx =10, pady =10,rowspan = 7, columnsp
 feed_control.grid(row = 8, column = 4, columnspan =4)
 
 mill_table.grid(row=0, column=4,padx=10, pady=10,columnspan = 4, rowspan = 7)
-
+  
 root.mainloop()
 
