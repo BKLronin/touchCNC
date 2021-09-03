@@ -10,9 +10,17 @@ grbl = 0
 i = 10
 GCODE = 0
 AXIS = 'X'
-states = {'M3':'0', 'M8':'0', 'M6':'0'} #Spindle, Coolant
+states = {'M3':'0', 'M8':'0', 'M6':'0'} #Spindle, Coolant, Toolchange
 BORDER = 2
 freetosend = 1
+
+#GUI Color Scheme
+
+attention = 'red'
+loaded = 'green'
+cooling = 'blue'
+toolchange = 'yellow'
+
 
 def grblConnect2():
     global grbl
@@ -25,13 +33,13 @@ def grblConnect2():
             try:
                 #print([comport.device for comport in serial.tools.list_ports.comports()])
                 print ("Trying...",device)
-                grbl = serial.Serial(port= device, baudrate= 115200, timeout =.1)
+                grbl = serial.Serial(port= device, baudrate= 115200, timeout =3)
                 #grbl.open()
                 #print(grbl.readline())
                 grbl.write(str.encode("\r\n\r\n"))
                 time.sleep(2)   # Wait for grbl to initialize
                 grbl.flushInput()  # Flush startup text in serial input
-                connect_ser.config(bg='#A2D729')
+                connect_ser.config(bg= loaded)
                 #print("connected")
 
                 break
@@ -54,21 +62,19 @@ def displayPosition():
         position.strip()
         coordinates_list = position.split(',')       
         #print(coordinates_list)
-        show_ctrl_x.config(text = coordinates_list[1]) 
-        show_ctrl_y.config(text = coordinates_list[2])
-        show_ctrl_z.config(text = coordinates_list[3])
+        try:
+            show_ctrl_x.config(text = coordinates_list[1]) 
+            show_ctrl_y.config(text = coordinates_list[2])
+            show_ctrl_z.config(text = coordinates_list[3])
 
-        #show_ctrl_x_w.config(text = coordinates_list[4]) 
-        #show_ctrl_y_w.config(text = coordinates_list[5])
-        #show_ctrl_z_w.config(text = coordinates_list[6])
+            show_ctrl_x_w.config(text = coordinates_list[4]) 
+            show_ctrl_y_w.config(text = coordinates_list[5])
+            show_ctrl_z_w.config(text = coordinates_list[6])
+        except:
+            print("Listerror")
     else:
         print("No Connection yet")
-    #show_ctrl_x.after(1000,displayPosition)    
-
-def debugWrite():
-    time.sleep(3)
-    print("NOW")
-    
+    root.after(500,displayPosition)    
 
 def jogWrite(AXIS, CMD, scale):   
     DECIMAL = [0.1,1,10,100]
@@ -89,14 +95,14 @@ def latchWrite(CMD):
     if states[CMD] == '0':
         states[CMD] = '1'        
         if CMD == 'M3':
-            spindle.config(bg='#A31621')
+            spindle.config(bg=attention) #A31621
         if CMD == 'M6':
-            tool.config(bg = '#E0CA3C')
+            tool.config(bg = toolchange)#E0CA3C
 
     else:
         states[CMD] ='0'
         if CMD == 'M3':
-            spindle.config(bg='#A2D729')
+            spindle.config(bg=loaded)#A2D729
         if CMD == 'M6':
             tool.config(bg='grey')
     
@@ -109,7 +115,7 @@ def latchWrite(CMD):
     if CMD == 'M8':
         if states['M8'] == '1':
             grbl_command = (CMD)
-            coolant.config(bg ='#1F7A8C')
+            coolant.config(bg = cooling)#1F7A8C
         else:
             grbl_command = ('M7')
             coolant.config(bg ='grey')
@@ -147,7 +153,7 @@ def openGCODE():
     GCODE = fd.askopenfile(title='Open a file', initialdir='/home/thomash/Environments/cnc/', filetypes=filetypes)
     
     if GCODE != 0:
-        fopen.config(bg='#A2D729')
+        fopen.config(bg= loaded)
     else:
         fopen.config(bg = 'grey')
       
@@ -191,11 +197,13 @@ def grblWrite():
     GCODE.seek(0)                
     for line in GCODE:        
         #print("write")
-        l = line.strip(line) # Strip all EOL characters for streaming
-        l = line.split(";",0)  
-        grbl_command = l[0]      
+        l = line.strip() # Strip all EOL characters for streaming
+        #l = line.split(";",1)  
+        grbl_command = l
+        print("GCODE",grbl_command)
+
         sendGRBL(grbl_command)
-        infoScreen("finished")   
+           
     GCODE.close()
     fopen.config(bg = 'grey')
 
@@ -216,7 +224,7 @@ def sendGRBL(grbl_command):
     grbl_out = grbl.readline() # Wait for grbl response with carriage return        
     infoScreen(grbl_out)
     
-    infoScreen("finished")        
+    #infoScreen("finished")        
 
 #GUI Main
 buttonsize_x = 5
@@ -235,7 +243,7 @@ movement = Frame(root, relief = 'ridge', bd = BORDER)
 left = Button(root, text="-X",  width = buttonsize_x, height = buttonsize_y, command = lambda:jogWrite('X', '-1', increments),bd = BORDER)
 right = Button(root, text="+X",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite('X', '1', increments),bd = BORDER)
 up = Button(root, text="+Y", width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite('Y', '1', increments),bd = BORDER)
-cancel = Button(root, text="cancel", width = buttonsize_x, height = buttonsize_y,bg = '#A31621', command = lambda:directWrite('133'),bd = BORDER)
+cancel = Button(root, text="cancel", width = buttonsize_x, height = buttonsize_y,bg = attention, command = lambda:directWrite('…'),bd = BORDER)
 down = Button(root, text="-Y",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite('Y', '-1', increments),bd = BORDER)
 z_up = Button(root, text="+Z",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite('Z', '1', increments) ,bd = BORDER)
 z_down = Button(root, text="-Z",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite('Z', '-1', increments),bd = BORDER)
@@ -243,14 +251,16 @@ z_down = Button(root, text="-Z",width = buttonsize_x, height = buttonsize_y,comm
 zero_x = Button(root, text="zero X",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite('G92', 'X0' ),bd = BORDER)
 zero_y = Button(root, text="zero Y",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite('G92', 'Y0' ),bd = BORDER)
 zero_z = Button(root, text="zero Z",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite('G92', 'Z0' ),bd = BORDER)
-zero_all =Button(root, text="zero All",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite('G92', 'G28.1'),bd = BORDER)
+zero_all =Button(root, text="zero All",width = buttonsize_x, height = buttonsize_y, command = lambda:directWrite('G28.1'),bd = BORDER)
 
 connect_ser = Button(root, text="Cnnct",width = buttonsize_x, height = buttonsize_y, command = grblConnect2, bg = 'grey',bd = BORDER)
 discon_ser = Button(root, text="Dsconct",width = buttonsize_x, height = buttonsize_y, command = lambda:grblClose(),bd = BORDER)
 unlock = Button(root, text="Unlock",width = buttonsize_x, height = buttonsize_y, command = lambda:directWrite('$X'),bd = BORDER)
-start = Button(root, text="START",width = buttonsize_x, height = buttonsize_y, bg = '#A31621', command = lambda: threading.Thread(target = grblWrite).start(),bd = BORDER)
-stop = Button(root, text="STOP",width = buttonsize_x, height = buttonsize_y,bd = BORDER)
-pause = Button(root, text="PAUSE",width = buttonsize_x, height = buttonsize_y, bg = '#1F7A8C',bd = BORDER)
+start = Button(root, text="START",width = buttonsize_x, height = buttonsize_y, bg = attention, command = lambda: threading.Thread(target = grblWrite).start(),bd = BORDER)
+stop = Button(root, text="STOP",width = buttonsize_x, height = buttonsize_y,bd = BORDER, command = lambda: directWrite('') )
+pause = Button(root, text="PAUSE",width = buttonsize_x, height = buttonsize_y, bg = cooling,bd = BORDER,command = lambda: directWrite('!')  )
+resume = Button(root, text="RESUME",width = buttonsize_x, height = buttonsize_y,bd = BORDER,command = lambda: directWrite('~')  )
+
 fopen = Button(root, text="GCODE",width = buttonsize_x , height = buttonsize_y, bg = 'grey', command = openGCODE,bd = BORDER)
 
 spindle = Button(root, text="Spindle",width = buttonsize_x, height = buttonsize_y, bg = 'grey', command = lambda:latchWrite('M3'))
@@ -279,7 +289,7 @@ show_ctrl_x_w =Label(root, text = "X_POS_W", width = 8, height = 2, bg ='white',
 show_ctrl_y_w =Label(root, text = "Y_POS_W", width = 8, height = 2, bg ='white', relief = SUNKEN)
 show_ctrl_z_w =Label(root, text = "Z_POS_W", width = 8, height = 2, bg ='white', relief = SUNKEN)
 
-#threading.Thread(target= displayPosition()).start() 
+threading.Thread(target= displayPosition()).start() 
 
 feed_control = Scale(root, orient = HORIZONTAL, length = 400, label = "Feedrate",tickinterval = 20)
 
@@ -335,7 +345,8 @@ discon_ser.grid(row=7, column=1,padx=10, pady=10)
 unlock.grid(row=8, column=1,padx=10, pady=10)
 start.grid(row=7, column=2,padx=10, pady=10)
 stop.grid(row=7, column=3,padx=10, pady=10)
-pause.grid(row=8, column=2,padx=10, pady=10, columnspan = 1)
+pause.grid(row=8, column=2,padx=10, pady=10)
+resume.grid(row=8, column=3,padx=10, pady=10)
 fopen.grid(row=8, column=0,padx=10, pady=10)
 
 spindle.grid(row=7, column=4,padx=1, pady=10)
