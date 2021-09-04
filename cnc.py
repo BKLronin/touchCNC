@@ -10,17 +10,22 @@ grbl = 0
 i = 10
 GCODE = 0
 AXIS = 'X'
-states = {'M3':'0', 'M8':'0', 'M6':'0'} #Spindle, Coolant, Toolchange
+states = {'M3':'0', 'M8':'0', 'M6':'0', 'G10': '0'} #Spindle, Coolant, Toolchange
+
+#GUI Main
+buttonsize_x = 5
+buttonsize_y = 3
+increments = 0
 BORDER = 2
 freetosend = 1
 
 #GUI Color Scheme
-
 attention = 'red'
 loaded = 'green'
 cooling = 'blue'
 toolchange = 'yellow'
-
+standard = '#17223B'
+feed = '#283B67'
 
 def grblConnect2():
     global grbl
@@ -55,9 +60,11 @@ def displayPosition():
         grbl_command = '?'   
         grbl.write(str.encode(grbl_command))
         position = str(grbl.readline())
-        #print(position)
+        print(position)
         position = position.replace('Idle|', ',')
         position = position.replace('WPos:', '')
+        position = position.replace('MPos:', '')
+        position = position.replace('>', ',')
         position = position.replace('|', ',')  
         position.strip()
         coordinates_list = position.split(',')       
@@ -95,9 +102,12 @@ def latchWrite(CMD):
     if states[CMD] == '0':
         states[CMD] = '1'        
         if CMD == 'M3':
-            spindle.config(bg=attention) #A31621
+            spindle.config(bg= attention) #A31621
         if CMD == 'M6':
             tool.config(bg = toolchange)#E0CA3C
+        if CMD == 'G10':
+            zero_all.config(bg = loaded)
+        
 
     else:
         states[CMD] ='0'
@@ -105,26 +115,33 @@ def latchWrite(CMD):
             spindle.config(bg=loaded)#A2D729
         if CMD == 'M6':
             tool.config(bg='grey')
+        #if CMD == 'G10':
+        #    zero_all.config(bg= attention)
+
     
     if CMD == 'M3':
         if states['M3'] == '1':
-            grbl_command =  'M3 S1000'
-        if states['M3'] == '0':
+            grbl_command = 'M3 S1000'
+        else:
             grbl_command = 'M3 S0'
           
-    if CMD == 'M8':
+    elif CMD == 'M8':
         if states['M8'] == '1':
             grbl_command = (CMD)
             coolant.config(bg = cooling)#1F7A8C
         else:
-            grbl_command = ('M7')
+            grbl_command = 'M9'
             coolant.config(bg ='grey')
+
+    elif CMD == 'G10':
+        grbl_command = 'G10 P0 L20 X0 Y0 Z0'
+
     else:
         grbl_command = (CMD)     
     
     #grbl_command = (CMD * int(states[CMD]) )   
     print(grbl_command)
-    print(states)
+    #print(states)
     sendGRBL(grbl_command)
     
 def zeroWrite(CMD, AXIS):
@@ -226,10 +243,7 @@ def sendGRBL(grbl_command):
     
     #infoScreen("finished")        
 
-#GUI Main
-buttonsize_x = 5
-buttonsize_y = 3
-increments = 0
+
 
 root = Tk()
 root.title('touchCNC')
@@ -240,18 +254,20 @@ root.tk_setPalette(background='#11192C', foreground='white',activeBackground='#2
 
 increments = IntVar()
 movement = Frame(root, relief = 'ridge', bd = BORDER)
-left = Button(root, text="-X",  width = buttonsize_x, height = buttonsize_y, command = lambda:jogWrite('X', '-1', increments),bd = BORDER)
-right = Button(root, text="+X",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite('X', '1', increments),bd = BORDER)
-up = Button(root, text="+Y", width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite('Y', '1', increments),bd = BORDER)
-cancel = Button(root, text="cancel", width = buttonsize_x, height = buttonsize_y,bg = attention, command = lambda:directWrite('…'),bd = BORDER)
-down = Button(root, text="-Y",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite('Y', '-1', increments),bd = BORDER)
-z_up = Button(root, text="+Z",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite('Z', '1', increments) ,bd = BORDER)
-z_down = Button(root, text="-Z",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite('Z', '-1', increments),bd = BORDER)
+left = Button(root, text="-X",  width = buttonsize_x, height = buttonsize_y, command = lambda:jogWrite('X', '-1', increments),bd = BORDER, bg = standard)
+right = Button(root, text="+X",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite('X', '1', increments),bd = BORDER, bg = standard)
+up = Button(root, text="+Y", width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite('Y', '1', increments),bd = BORDER, bg = standard)
+down = Button(root, text="-Y",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite('Y', '-1', increments),bd = BORDER, bg = standard)
+z_up = Button(root, text="+Z",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite('Z', '1', increments) ,bd = BORDER, bg = standard)
+z_down = Button(root, text="-Z",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite('Z', '-1', increments),bd = BORDER, bg = standard)
 
-zero_x = Button(root, text="zero X",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite('G92', 'X0' ),bd = BORDER)
-zero_y = Button(root, text="zero Y",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite('G92', 'Y0' ),bd = BORDER)
-zero_z = Button(root, text="zero Z",width = buttonsize_x, height = buttonsize_y, command = lambda:zeroWrite('G92', 'Z0' ),bd = BORDER)
-zero_all =Button(root, text="zero All",width = buttonsize_x, height = buttonsize_y, command = lambda:directWrite('G28.1'),bd = BORDER)
+zero_x = Button(root, text="zero X",width = buttonsize_x, height = 1, command = lambda:directWrite('G10 P0 L20 X0'),bd = BORDER)
+zero_y = Button(root, text="zero Y",width = buttonsize_x, height = 1, command = lambda:directWrite('G10 P0 L20 Y0' ),bd = BORDER)
+zero_z = Button(root, text="zero Z",width = buttonsize_x, height = 1, command = lambda:directWrite('G10 P0 L20 Z0' ),bd = BORDER)
+zero_all=Button(root, text="zeroAll",width = buttonsize_x, height = 3, command = lambda:latchWrite('G10'),bd = BORDER, bg= 'magenta')
+
+setzero =Button(root, text="SetPOS",width = buttonsize_x, height = buttonsize_y, command = lambda:directWrite('G28.1'),bd = BORDER)
+gozero =Button(root, text="GoPOS",width = buttonsize_x, height = buttonsize_y, command = lambda:directWrite('G28'),bd = BORDER) 
 
 connect_ser = Button(root, text="Cnnct",width = buttonsize_x, height = buttonsize_y, command = grblConnect2, bg = 'grey',bd = BORDER)
 discon_ser = Button(root, text="Dsconct",width = buttonsize_x, height = buttonsize_y, command = lambda:grblClose(),bd = BORDER)
@@ -259,14 +275,20 @@ unlock = Button(root, text="Unlock",width = buttonsize_x, height = buttonsize_y,
 start = Button(root, text="START",width = buttonsize_x, height = buttonsize_y, bg = attention, command = lambda: threading.Thread(target = grblWrite).start(),bd = BORDER)
 stop = Button(root, text="STOP",width = buttonsize_x, height = buttonsize_y,bd = BORDER, command = lambda: directWrite('') )
 pause = Button(root, text="PAUSE",width = buttonsize_x, height = buttonsize_y, bg = cooling,bd = BORDER,command = lambda: directWrite('!')  )
-resume = Button(root, text="RESUME",width = buttonsize_x, height = buttonsize_y,bd = BORDER,command = lambda: directWrite('~')  )
+resume = Button(root, text="RESUME",width = buttonsize_x, height = buttonsize_y,bd = BORDER,command = lambda: directWrite('~'))
 
 fopen = Button(root, text="GCODE",width = buttonsize_x , height = buttonsize_y, bg = 'grey', command = openGCODE,bd = BORDER)
 
-spindle = Button(root, text="Spindle",width = buttonsize_x, height = buttonsize_y, bg = 'grey', command = lambda:latchWrite('M3'))
+spindle = Button(root, text="Spindle",width = buttonsize_x, height = buttonsize_y,command = lambda:latchWrite('M3'))
 coolant = Button(root, text="Coolant",width = buttonsize_x, height = buttonsize_y,command = lambda:latchWrite('M8') )
 tool = Button(root, text="Tool",width = buttonsize_x, height = buttonsize_y,command = lambda:latchWrite('M6') )
 macro = Button(root, text="Macro1",width = buttonsize_x, height = buttonsize_y,command = lambda:directWrite(' G90 G0 X10 Y10 Z50 F1000') )
+
+inc1 = Button(root, text="Inc 1%",width = buttonsize_x, height = buttonsize_y,command = lambda:directWrite('‘'),bg= feed)
+inc10 = Button(root,text="Inc 10%",width = buttonsize_x, height = buttonsize_y,command = lambda:directWrite('“'),bg= feed )
+dec1 = Button(root, text="Dec 1%",width = buttonsize_x, height = buttonsize_y,command = lambda:directWrite('”'),bg= feed )
+dec10 = Button(root,text="Dec 10%",width = buttonsize_x, height = buttonsize_y,command = lambda:directWrite('’'),bg= feed )
+reset = Button(root,text="RESET",width = buttonsize_x, height = buttonsize_y,command = lambda:directWrite(''),bg= 'grey' )
 
 step_incr1 = Radiobutton(root, text= '0,1', value = 1 , variable = increments,width = buttonsize_x, height = buttonsize_y, indicatoron = 0 )
 step_incr2 = Radiobutton(root, text= '1', value = 2 , variable = increments,width = buttonsize_x, height = buttonsize_y, indicatoron = 0 )
@@ -285,13 +307,13 @@ show_ctrl_x =Label(root, text = "X_POS", width = 8, height = 2, bg ='white', rel
 show_ctrl_y =Label(root, text = "Y_POS", width = 8, height = 2, bg ='white', relief = SUNKEN, fg= 'black')
 show_ctrl_z =Label(root, text = "Z_POS", width = 8, height = 2, bg ='white', relief = SUNKEN, fg= 'black')
 
-show_ctrl_x_w =Label(root, text = "X_POS_W", width = 8, height = 2, bg ='white', relief = SUNKEN)
-show_ctrl_y_w =Label(root, text = "Y_POS_W", width = 8, height = 2, bg ='white', relief = SUNKEN)
-show_ctrl_z_w =Label(root, text = "Z_POS_W", width = 8, height = 2, bg ='white', relief = SUNKEN)
+show_ctrl_x_w =Label(root, text = "X_POS_W", width = 8, height = 2, bg ='white', relief = SUNKEN, fg= 'black')
+show_ctrl_y_w =Label(root, text = "Y_POS_W", width = 8, height = 2, bg ='white', relief = SUNKEN, fg= 'black')
+show_ctrl_z_w =Label(root, text = "Z_POS_W", width = 8, height = 2, bg ='white', relief = SUNKEN, fg= 'black')
 
 threading.Thread(target= displayPosition()).start() 
 
-feed_control = Scale(root, orient = HORIZONTAL, length = 400, label = "Feedrate",tickinterval = 20)
+#feed_control = Scale(root, orient = HORIZONTAL, length = 400, label = "Feedrate",tickinterval = 20)
 
 #Milling Area and Gcode preview with grid generation
 
@@ -310,7 +332,6 @@ for x in range(0,400,50):
 
 movement.grid(row = 0, column = 0, columnspan = 3, rowspan = 1)
 left.grid(row=1, column=0, padx=3, pady=2)
-cancel.grid(row=0, column=2, padx=3, pady=2)
 right.grid(row=1, column=2,padx=3, pady=2)
 up.grid(row=0, column=1, padx=3, pady=10)
 down.grid(row=1, column=1,padx=3, pady=2)
@@ -336,10 +357,14 @@ show_ctrl_x_w.grid(row=3, column=2,padx=0, pady=0, columnspan =1)
 show_ctrl_y_w.grid(row=4, column=2,padx=0, pady=0, columnspan =1)
 show_ctrl_z_w.grid(row=5, column=2,padx=0, pady=0, columnspan =1)
 
-zero_x.grid(row=6, column=0,padx=10, pady=10)
-zero_y.grid(row=6, column=1,padx=10, pady=10)
-zero_z.grid(row=6, column=2,padx=10, pady=10)
+zero_x.grid(row=3, column=3)
+zero_y.grid(row=4, column=3)
+zero_z.grid(row=5, column=3)
 zero_all.grid(row=6, column=3,padx=10, pady=10)
+
+setzero.grid(row=6, column=0,padx=10, pady=10)
+gozero.grid(row=6, column=1,padx=10, pady=10)
+
 connect_ser.grid(row=7, column=0,padx=10, pady=10)
 discon_ser.grid(row=7, column=1,padx=10, pady=10)
 unlock.grid(row=8, column=1,padx=10, pady=10)
@@ -354,11 +379,19 @@ coolant.grid(row=7, column=5,padx=1, pady=10)
 tool.grid(row=7, column=6,padx=1, pady=10)
 macro.grid(row=7, column=7,padx=1, pady=10)
 
+dec10.grid(row=8, column=4,padx=1, pady=10)
+dec1.grid(row=8, column=5,padx=1, pady=10)
+inc1.grid(row=8, column=6,padx=1, pady=10)
+inc10.grid(row=8, column=7,padx=1, pady=10)
+
+reset.grid(row=8, column=8,padx=1, pady=10)
+
+
 terminal.grid(row = 7, column = 8, padx =2, pady =10)
 terminal_send.grid(row = 7, column = 9, padx =2, pady =10)
 terminal_recv.grid(row = 0, column = 8, padx =10, pady =10,rowspan = 7, columnspan =2)
 
-feed_control.grid(row = 8, column = 4, columnspan =4)
+#feed_control.grid(row = 8, column = 4, columnspan =4)
 
 mill_table.grid(row=0, column=4,padx=10, pady=10,columnspan = 4, rowspan = 7)
   
