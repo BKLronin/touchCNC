@@ -55,33 +55,7 @@ def grblConnect2():
     # Stream g-code to grbl
     #Stream GCODE from -https://onehossshay.wordpress.com/2011/08/26/grbl-a-simple-python-interface/-    
 
-def displayPosition():    
-    if grbl != 0:
-        grbl_command = '?'   
-        grbl.write(str.encode(grbl_command))
-        position = str(grbl.readline())
-        print(position)
-        position = position.replace('Idle|', ',')
-        position = position.replace('WPos:', '')
-        position = position.replace('MPos:', '')
-        position = position.replace('>', ',')
-        position = position.replace('|', ',')  
-        position.strip()
-        coordinates_list = position.split(',')       
-        #print(coordinates_list)
-        try:
-            show_ctrl_x.config(text = coordinates_list[1]) 
-            show_ctrl_y.config(text = coordinates_list[2])
-            show_ctrl_z.config(text = coordinates_list[3])
-
-            show_ctrl_x_w.config(text = coordinates_list[4]) 
-            show_ctrl_y_w.config(text = coordinates_list[5])
-            show_ctrl_z_w.config(text = coordinates_list[6])
-        except:
-            print("Listerror")
-    else:
-        print("No Connection yet")
-    root.after(500,displayPosition)    
+   
 
 def jogWrite(AXIS, CMD, scale):   
     DECIMAL = [0.1,1,10,100]
@@ -94,8 +68,7 @@ def jogWrite(AXIS, CMD, scale):
 
 def directWrite(CMD):
     grbl_command = CMD
-    if freetosend == 1:
-            sendGRBL(grbl_command)
+    sendGRBL(grbl_command)
 
 def latchWrite(CMD):
     global states 
@@ -106,8 +79,7 @@ def latchWrite(CMD):
         if CMD == 'M6':
             tool.config(bg = toolchange)#E0CA3C
         if CMD == 'G10':
-            zero_all.config(bg = loaded)
-        
+            zero_all.config(bg = loaded)        
 
     else:
         states[CMD] ='0'
@@ -218,8 +190,8 @@ def grblWrite():
         #l = line.split(";",1)  
         grbl_command = l
         print("GCODE",grbl_command)
-
-        sendGRBL(grbl_command)
+        if freetosend == 1:
+            sendGRBL(grbl_command)
            
     GCODE.close()
     fopen.config(bg = 'grey')
@@ -235,22 +207,52 @@ def grblClose():
         print("Connection still open")
 
 def sendGRBL(grbl_command):
-    global freetosend    
+    global freetosend  
+    freetosend = 0
     #print(grbl_command)  
     grbl.write(str.encode(grbl_command+ '\n')) # Send g-code block to grbl
-    grbl_out = grbl.readline() # Wait for grbl response with carriage return        
+    time.sleep(0.01) 
+    grbl_out = grbl.readline() # Wait for grbl response with carriage return
+           
     infoScreen(grbl_out)
+    freetosend = 1
+    return grbl_out
     
-    #infoScreen("finished")        
+    #infoScreen("finished")  
 
+def displayPosition():    
+    if grbl != 0 :
+        grbl_command = '?'          
+        position = str(sendGRBL(grbl_command))
+        print(position)
+        position = position.replace('Idle|', ',')
+        position = position.replace('Run|', ',')
+        position = position.replace('WPos:', '')
+        position = position.replace('MPos:', '')
+        position = position.replace('>', ',')
+        position = position.replace('|', ',')  
+        position.strip()
+        coordinates_list = position.split(',')       
+        print(coordinates_list)
+        try:
+            show_ctrl_x.config(text = coordinates_list[1]) 
+            show_ctrl_y.config(text = coordinates_list[2])
+            show_ctrl_z.config(text = coordinates_list[3])
 
+            #show_ctrl_x_w.config(text = coordinates_list[4]) 
+            #show_ctrl_y_w.config(text = coordinates_list[5])
+            #show_ctrl_z_w.config(text = coordinates_list[6])
+        except:
+            print("Listerror")
+    else:
+        print("Serial Busy")
+    root.after(500,displayPosition) 
 
 root = Tk()
 root.title('touchCNC')
 root.geometry('1024x600+0+0')
 root.resizable(False,False)#17203b
 root.tk_setPalette(background='#11192C', foreground='white',activeBackground='#283867', activeForeground='white' )
-
 
 increments = IntVar()
 movement = Frame(root, relief = 'ridge', bd = BORDER)
