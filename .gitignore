@@ -1,0 +1,16 @@
+
+build/cnc/xref-cnc.html
+build/cnc/warn-cnc.txt
+build/cnc/Tree-02.toc
+build/cnc/Tree-01.toc
+build/cnc/Tree-00.toc
+build/cnc/PYZ-00.toc
+build/cnc/PYZ-00.pyz
+build/cnc/PKG-00.toc
+build/cnc/PKG-00.pkg
+build/cnc/localpycos/struct.pyo
+build/cnc/EXE-00.toc
+build/cnc/base_library.zip
+build/cnc/Analysis-00.toc
+__pycache__/cnc.cpython-39.pyc
+cnc.spec
