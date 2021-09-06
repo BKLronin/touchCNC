@@ -3,7 +3,7 @@ import time
 from tkinter import *
 import serial.tools.list_ports
 from tkinter import filedialog as fd
-
+import os
 import threading
 
 grbl = 0
@@ -139,7 +139,7 @@ def openGCODE():
     global GCODE
 
     filetypes = (('GCODE', '*.nc'),('All files', '*.*'))
-    GCODE = fd.askopenfile(title='Open a file', initialdir='/home/thomash/Environments/cnc/', filetypes=filetypes)
+    GCODE = fd.askopenfile(title='Open a file', initialdir='/home/thomas/NEXTCLOUD/CAM/', filetypes=filetypes)
     
     if GCODE != 0:
         fopen.config(bg= loaded)
@@ -252,6 +252,7 @@ root = Tk()
 root.title('touchCNC')
 root.geometry('1024x600+0+0')
 root.resizable(False,False)#17203b
+root.attributes('-fullscreen', True)
 root.tk_setPalette(background='#11192C', foreground='white',activeBackground='#283867', activeForeground='white' )
 
 increments = IntVar()
@@ -279,7 +280,7 @@ stop = Button(root, text="STOP",width = buttonsize_x, height = buttonsize_y,bd =
 pause = Button(root, text="PAUSE",width = buttonsize_x, height = buttonsize_y, bg = cooling,bd = BORDER,command = lambda: directWrite('!')  )
 resume = Button(root, text="RESUME",width = buttonsize_x, height = buttonsize_y,bd = BORDER,command = lambda: directWrite('~'))
 
-fopen = Button(root, text="GCODE",width = buttonsize_x , height = buttonsize_y, bg = 'grey', command = openGCODE,bd = BORDER)
+fopen = Button(root, text="GCODE",width = buttonsize_x , height = buttonsize_y, bg = 'grey',fg = 'black', command = openGCODE,bd = BORDER)
 
 spindle = Button(root, text="Spindle",width = buttonsize_x, height = buttonsize_y,command = lambda:latchWrite('M3'))
 coolant = Button(root, text="Coolant",width = buttonsize_x, height = buttonsize_y,command = lambda:latchWrite('M8') )
@@ -290,7 +291,9 @@ inc1 = Button(root, text="Inc 1%",width = buttonsize_x, height = buttonsize_y,co
 inc10 = Button(root,text="Inc 10%",width = buttonsize_x, height = buttonsize_y,command = lambda:directWrite('“'),bg= feed )
 dec1 = Button(root, text="Dec 1%",width = buttonsize_x, height = buttonsize_y,command = lambda:directWrite('”'),bg= feed )
 dec10 = Button(root,text="Dec 10%",width = buttonsize_x, height = buttonsize_y,command = lambda:directWrite('’'),bg= feed )
-reset = Button(root,text="RESET",width = buttonsize_x, height = buttonsize_y,command = lambda:directWrite(''),bg= 'grey' )
+reset = Button(root,text="<RESET",width = buttonsize_x, height = buttonsize_y,command = lambda:directWrite(''),bg= 'grey' )
+
+reboot= Button(root,text="REBOOT",width = buttonsize_x, height = buttonsize_y,command = lambda: os.system('reboot'),bg= 'grey' )
 
 step_incr1 = Radiobutton(root, text= '0,1', value = 1 , variable = increments,width = buttonsize_x, height = buttonsize_y, indicatoron = 0 )
 step_incr2 = Radiobutton(root, text= '1', value = 2 , variable = increments,width = buttonsize_x, height = buttonsize_y, indicatoron = 0 )
@@ -387,6 +390,7 @@ inc1.grid(row=8, column=6,padx=1, pady=10)
 inc10.grid(row=8, column=7,padx=1, pady=10)
 
 reset.grid(row=8, column=8,padx=1, pady=10)
+reboot.grid(row=8, column=9,padx=1, pady=10)
 
 
 terminal.grid(row = 7, column = 8, padx =2, pady =10)
