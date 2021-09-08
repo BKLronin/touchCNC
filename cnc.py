@@ -139,7 +139,7 @@ def openGCODE():
     global GCODE
 
     filetypes = (('GCODE', '*.nc'),('All files', '*.*'))
-    GCODE = fd.askopenfile(title='Open a file', initialdir='/home/thomas/NEXTCLOUD/CAM/', filetypes=filetypes)
+    GCODE = fd.askopenfile(title='Open a file', initialdir='/home/thomas/Nextcloud/CAM/', filetypes=filetypes)
     
     if GCODE != 0:
         fopen.config(bg= loaded)
@@ -221,10 +221,10 @@ def sendGRBL(grbl_command):
     #infoScreen("finished")  
 
 def displayPosition():    
-    if grbl != 0 :
+    if grbl != 0 and freetosend == 1:
         grbl_command = '?'          
         position = str(sendGRBL(grbl_command))
-        print(position)
+        #print(position)
         position = position.replace('Idle|', ',')
         position = position.replace('Run|', ',')
         position = position.replace('WPos:', '')
@@ -233,7 +233,7 @@ def displayPosition():
         position = position.replace('|', ',')  
         position.strip()
         coordinates_list = position.split(',')       
-        print(coordinates_list)
+        #print(coordinates_list)
         try:
             show_ctrl_x.config(text = coordinates_list[1]) 
             show_ctrl_y.config(text = coordinates_list[2])
