@@ -9,6 +9,10 @@ import threading
 grbl = 0
 i = 10
 GCODE = 0
+countbuf = 0
+writebuffer_byPass = []
+writebuffer = []
+readbuffer = []
 AXIS = 'X'
 states = {'M3':'0', 'M8':'0', 'M6':'0', 'G10': '0'} #Spindle, Coolant, Toolchange
 
@@ -38,7 +42,7 @@ def grblConnect2():
             try:
                 #print([comport.device for comport in serial.tools.list_ports.comports()])
                 print ("Trying...",device)
-                grbl = serial.Serial(port= device, baudrate= 115200, timeout =3)
+                grbl = serial.Serial(port= device, baudrate= 115200, timeout =3, dsrdtr= True)
                 #grbl.open()
                 #print(grbl.readline())
                 grbl.write(str.encode("\r\n\r\n"))
@@ -53,25 +57,39 @@ def grblConnect2():
                 grbl = 0
 
     # Stream g-code to grbl
-    #Stream GCODE from -https://onehossshay.wordpress.com/2011/08/26/grbl-a-simple-python-interface/-    
+    #Stream GCODE from -https://onehossshay.wordpress.com/2011/08/26/grbl-a-simple-python-interface/-       
 
-   
+def jogWrite(AXIS, CMD, scale): #Schreiben von manuellen Positionierungsbefehlen
+    global freetosend
 
-def jogWrite(AXIS, CMD, scale):   
     DECIMAL = [0.1,1,10,100]
     scale = increments.get()
     MOVE = int(CMD) * DECIMAL[scale -1]     
     grbl_command = ('$J=G91' +' ' + AXIS + str(MOVE) + ' '+ 'F1000')    
     #print(grbl_command)
-    if freetosend == 1:
-            sendGRBL(grbl_command)
+    if freetosend == 1: 
+        byPass(grbl_command+'\n')        
+    else:
+        for button in blkbuttons:
+            switchButtonState(button)
 
-def directWrite(CMD):
-    grbl_command = CMD
-    sendGRBL(grbl_command)
+def switchButtonState(button): #Umschalter für Knopfstatus
+    if button["state"] == DISABLED:
+        button["state"] = NORMAL
+    else:
+        button["state"] = DISABLED
+
+def directWrite(CMD): #Direktes schreiben eines Befehls
+    global freetosend
+    grbl_command = CMD 
+    if freetosend == 0:           
+        now_bufferGRBL(grbl_command + '\n')
+    else:
+        byPass(grbl_command+'\n')
 
 def latchWrite(CMD):
     global states 
+    global freetosend
     if states[CMD] == '0':
         states[CMD] = '1'        
         if CMD == 'M3':
@@ -89,7 +107,6 @@ def latchWrite(CMD):
             tool.config(bg='grey')
         #if CMD == 'G10':
         #    zero_all.config(bg= attention)
-
     
     if CMD == 'M3':
         if states['M3'] == '1':
@@ -112,20 +129,33 @@ def latchWrite(CMD):
         grbl_command = (CMD)     
     
     #grbl_command = (CMD * int(states[CMD]) )   
-    print(grbl_command)
+    #print(grbl_command)
     #print(states)
-    sendGRBL(grbl_command)
     
-def zeroWrite(CMD, AXIS):
+    if freetosend == 0:
+        now_bufferGRBL(grbl_command + '\n')
+    else:
+        byPass(grbl_command + '\n')
+    print(grbl_command)
+    
+def zeroWrite(CMD, AXIS): #Umwandlung für Achsennullung
+    global freetosend
     grbl_command = (CMD + ' ' + AXIS + '0')
-    sendGRBL(grbl_command)
+    if freetosend == 0:           
+        now_bufferGRBL(grbl_command + '\n')
+    else:
+        byPass(grbl_command+ '\n')
 
-def terminalWrite():
+def terminalWrite(): #Holt Zeichenstring von Editfeld und sendet es
     grbl_command = terminal.get()
     #print(grbl_command)
-    sendGRBL(grbl_command)
+    if freetosend == 0:           
+        now_bufferGRBL(grbl_command + '\n')
+    else:
+        byPass(grbl_command+'\n')
+    
 
-def infoScreen(data):
+def infoScreen(data): #Anzeigecanvas für GRBL Rückmeldungen
     global i
     terminalFrame = Frame(terminal_recv, bg = 'white')
     terminal_recv.create_window(10,i, window = terminalFrame, anchor = 'nw')
@@ -135,7 +165,7 @@ def infoScreen(data):
         i=10
         terminal_recv.delete("all")
 
-def openGCODE():
+def openGCODE(): #Dialog zur Gcode AUswahl und öffnen der Datei als GCODE Objekt
     global GCODE
 
     filetypes = (('GCODE', '*.nc'),('All files', '*.*'))
@@ -146,8 +176,8 @@ def openGCODE():
     else:
         fopen.config(bg = 'grey')
       
-    build_xy = findEnvelope()
-    mill_table.create_rectangle(build_xy[0],build_xy[1], fill = 'blue', stipple = 'gray75')       
+    build_xy = findEnvelope() #Aufruf PLatz im Bauraum
+    mill_table.create_rectangle(build_xy[0],build_xy[1], fill = 'blue', stipple = 'gray75') # Zeichnen des Objekts im Bauraum      
     
 def findEnvelope(): #get the max used Buildspace and position of the job
     x_coords = []
@@ -182,19 +212,140 @@ def findEnvelope(): #get the max used Buildspace and position of the job
 
 def grblWrite():   
     #print("write1")
+    global writebuffer
     
-    GCODE.seek(0)                
+    GCODE.seek(0)
+                
     for line in GCODE:        
         #print("write")
         l = line.strip() # Strip all EOL characters for streaming
-        #l = line.split(";",1)  
+        
         grbl_command = l
-        print("GCODE",grbl_command)
-        if freetosend == 1:
-            sendGRBL(grbl_command)
-           
+        #print("GCODE",grbl_command)
+        bufferGRBL(grbl_command + '\n')       
+    sendGRBL()       
     GCODE.close()
+    for button in blkbuttons:
+            switchButtonState(button)
     fopen.config(bg = 'grey')
+
+def timedPositionRequest():
+    if grbl != 0 and freetosend == 1:
+
+        grbl_command = '?'
+        byPass(grbl_command)
+    root.after(1000, timedPositionRequest)
+
+def bufferGRBL(grbl_command):
+    global writebuffer
+    writebuffer.append(grbl_command)
+    #print (len(writebuffer))
+
+def now_bufferGRBL(grbl_command):
+    global writebuffer
+    writebuffer.insert(1,grbl_command)
+    #print (len(writebuffer))
+
+def byPass(grbl_command):
+    global writebuffer_byPass
+
+    if grbl_command == '?':
+        grbl.write(str.encode(grbl_command)) # Send g-code block to grbl
+        grbl_out = grbl.readline().strip()
+    else:
+        print(grbl_command)
+        writebuffer_byPass.append(grbl_command)
+        grbl.write(str.encode(writebuffer_byPass[0])) # Send g-code block to grbl
+        grbl_out = grbl.readline().strip()
+        del writebuffer_byPass[0]
+    displayPosition_request(grbl_out)
+    infoScreen(grbl_out)
+    print(grbl_out)
+
+def sendGRBL():    
+    global writebuffer
+    global freetosend
+    
+    while len(writebuffer) >0:
+        freetosend = 0
+        #print ("current",writebuffer[0])
+        #print (writebuffer)
+        grbl.write(str.encode(writebuffer[0])) # Send g-code block to grbl
+        #grbl.timeout = None    
+        readbuffer.append(grbl.readline().strip()) # Wait for grbl response with carriage return
+        del writebuffer[0]
+
+        if len(readbuffer) == 5:
+            writebuffer.insert(2,'?')
+            displayPosition()
+            infoScreen(readbuffer[0])
+            readbuffer.clear()
+    freetosend = 1
+
+def displayPosition_request(grbl_pos):     
+    if grbl != 0 :        
+        try:         
+            position = str(grbl_pos)
+            #print (readbuffer)           
+
+            position = position.replace('Idle|', ',')
+            position = position.replace('Run|', ',')
+            position = position.replace('WPos:', '')
+            position = position.replace('MPos:', '')
+            position = position.replace('>', ',')
+            position = position.replace('|', ',')  
+            position.strip()
+            coordinates_list = position.split(',')             
+            #print(coordinates_list)
+            show_ctrl_x.config(text = coordinates_list[1]) 
+            show_ctrl_y.config(text = coordinates_list[2])
+            show_ctrl_z.config(text = coordinates_list[3])
+
+            #show_ctrl_x_w.config(text = coordinates_list[4]) 
+            #show_ctrl_y_w.config(text = coordinates_list[5])
+            #show_ctrl_z_w.config(text = coordinates_list[6])
+            
+        except:
+            pass
+            #print("Listerror")
+        
+
+    else:
+        print("Serial Busy")
+    #root.after(1000,displayPosition) 
+
+def displayPosition(): 
+    global readbuffer 
+    if grbl != 0 :        
+        try:         
+            position = str(readbuffer[2])
+            #print (readbuffer)           
+
+            position = position.replace('Idle|', ',')
+            position = position.replace('Run|', ',')
+            position = position.replace('WPos:', '')
+            position = position.replace('MPos:', '')
+            position = position.replace('>', ',')
+            position = position.replace('|', ',')  
+            position.strip()
+            coordinates_list = position.split(',')             
+            #print(coordinates_list)
+            show_ctrl_x.config(text = coordinates_list[1]) 
+            show_ctrl_y.config(text = coordinates_list[2])
+            show_ctrl_z.config(text = coordinates_list[3])
+
+            #show_ctrl_x_w.config(text = coordinates_list[4]) 
+            #show_ctrl_y_w.config(text = coordinates_list[5])
+            #show_ctrl_z_w.config(text = coordinates_list[6])
+            
+        except:
+            pass
+            #print("Listerror")
+        
+
+    else:
+        print("Serial Busy")
+    #root.after(1000,displayPosition) 
 
 def grblClose():
     # Close file and serial port
@@ -205,48 +356,6 @@ def grblClose():
         connect_ser.config(bg='grey')
     except:
         print("Connection still open")
-
-def sendGRBL(grbl_command):
-    global freetosend  
-    freetosend = 0
-    #print(grbl_command)  
-    grbl.write(str.encode(grbl_command+ '\n')) # Send g-code block to grbl
-    time.sleep(0.01) 
-    grbl_out = grbl.readline() # Wait for grbl response with carriage return
-           
-    infoScreen(grbl_out)
-    freetosend = 1
-    return grbl_out
-    
-    #infoScreen("finished")  
-
-def displayPosition():    
-    if grbl != 0 and freetosend == 1:
-        grbl_command = '?'          
-        position = str(sendGRBL(grbl_command))
-        #print(position)
-        position = position.replace('Idle|', ',')
-        position = position.replace('Run|', ',')
-        position = position.replace('WPos:', '')
-        position = position.replace('MPos:', '')
-        position = position.replace('>', ',')
-        position = position.replace('|', ',')  
-        position.strip()
-        coordinates_list = position.split(',')       
-        #print(coordinates_list)
-        try:
-            show_ctrl_x.config(text = coordinates_list[1]) 
-            show_ctrl_y.config(text = coordinates_list[2])
-            show_ctrl_z.config(text = coordinates_list[3])
-
-            #show_ctrl_x_w.config(text = coordinates_list[4]) 
-            #show_ctrl_y_w.config(text = coordinates_list[5])
-            #show_ctrl_z_w.config(text = coordinates_list[6])
-        except:
-            print("Listerror")
-    else:
-        print("Serial Busy")
-    root.after(500,displayPosition) 
 
 root = Tk()
 root.title('touchCNC')
@@ -285,7 +394,7 @@ fopen = Button(root, text="GCODE",width = buttonsize_x , height = buttonsize_y, 
 spindle = Button(root, text="Spindle",width = buttonsize_x, height = buttonsize_y,command = lambda:latchWrite('M3'))
 coolant = Button(root, text="Coolant",width = buttonsize_x, height = buttonsize_y,command = lambda:latchWrite('M8') )
 tool = Button(root, text="Tool",width = buttonsize_x, height = buttonsize_y,command = lambda:latchWrite('M6') )
-macro = Button(root, text="Macro1",width = buttonsize_x, height = buttonsize_y,command = lambda:directWrite(' G90 G0 X10 Y10 Z50 F1000') )
+macro = Button(root, text="Macro1",width = buttonsize_x, height = buttonsize_y,command = lambda:directWrite(' G91 G0 X10 Y10 Z50 F1000') )
 
 inc1 = Button(root, text="Inc 1%",width = buttonsize_x, height = buttonsize_y,command = lambda:directWrite('‘'),bg= feed)
 inc10 = Button(root,text="Inc 10%",width = buttonsize_x, height = buttonsize_y,command = lambda:directWrite('“'),bg= feed )
@@ -316,7 +425,7 @@ show_ctrl_x_w =Label(root, text = "X_POS_W", width = 8, height = 2, bg ='white',
 show_ctrl_y_w =Label(root, text = "Y_POS_W", width = 8, height = 2, bg ='white', relief = SUNKEN, fg= 'black')
 show_ctrl_z_w =Label(root, text = "Z_POS_W", width = 8, height = 2, bg ='white', relief = SUNKEN, fg= 'black')
 
-threading.Thread(target= displayPosition()).start() 
+
 
 #feed_control = Scale(root, orient = HORIZONTAL, length = 400, label = "Feedrate",tickinterval = 20)
 
@@ -400,6 +509,13 @@ terminal_recv.grid(row = 0, column = 8, padx =10, pady =10,rowspan = 7, columnsp
 #feed_control.grid(row = 8, column = 4, columnspan =4)
 
 mill_table.grid(row=0, column=4,padx=10, pady=10,columnspan = 4, rowspan = 7)
+
+sendGRBL()
+
+#BlockedButtons
+blkbuttons = (up,down,left,right,z_up,z_down, zero_x, zero_y, zero_z, zero_all, setzero, gozero, spindle)
+
+timedPositionRequest()
   
 root.mainloop()
 
