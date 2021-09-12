@@ -42,7 +42,7 @@ def grblConnect2():
             try:
                 #print([comport.device for comport in serial.tools.list_ports.comports()])
                 print ("Trying...",device)
-                grbl = serial.Serial(port= device, baudrate= 115200, timeout =3, dsrdtr= True)
+                grbl = serial.Serial(port= device, baudrate= 115200, timeout =3) #dsrdtr= True)
                 #grbl.open()
                 #print(grbl.readline())
                 grbl.write(str.encode("\r\n\r\n"))
@@ -65,8 +65,8 @@ def jogWrite(AXIS, CMD, scale): #Schreiben von manuellen Positionierungsbefehlen
     DECIMAL = [0.1,1,10,100]
     scale = increments.get()
     MOVE = int(CMD) * DECIMAL[scale -1]     
-    grbl_command = ('$J=G91' +' ' + AXIS + str(MOVE) + ' '+ 'F1000')    
-    #print(grbl_command)
+    grbl_command = ('$J=G91' + 'G21' + AXIS + str(MOVE)+ 'F1000')    
+    #print(grbl_command) $J=G91G21X10F185
     if freetosend == 1: 
         byPass(grbl_command+'\n')        
     else:
@@ -81,11 +81,12 @@ def switchButtonState(button): #Umschalter für Knopfstatus
 
 def directWrite(CMD): #Direktes schreiben eines Befehls
     global freetosend
+    #print(freetosend)
     grbl_command = CMD 
     if freetosend == 0:           
         now_bufferGRBL(grbl_command + '\n')
     else:
-        byPass(grbl_command+'\n')
+        byPass(grbl_command + '\n')
 
 def latchWrite(CMD):
     global states 
@@ -137,14 +138,6 @@ def latchWrite(CMD):
     else:
         byPass(grbl_command + '\n')
     print(grbl_command)
-    
-def zeroWrite(CMD, AXIS): #Umwandlung für Achsennullung
-    global freetosend
-    grbl_command = (CMD + ' ' + AXIS + '0')
-    if freetosend == 0:           
-        now_bufferGRBL(grbl_command + '\n')
-    else:
-        byPass(grbl_command+ '\n')
 
 def terminalWrite(): #Holt Zeichenstring von Editfeld und sendet es
     grbl_command = terminal.get()
@@ -153,7 +146,6 @@ def terminalWrite(): #Holt Zeichenstring von Editfeld und sendet es
         now_bufferGRBL(grbl_command + '\n')
     else:
         byPass(grbl_command+'\n')
-    
 
 def infoScreen(data): #Anzeigecanvas für GRBL Rückmeldungen
     global i
@@ -248,16 +240,25 @@ def now_bufferGRBL(grbl_command):
 
 def byPass(grbl_command):
     global writebuffer_byPass
-
+    #print (grbl_command)
     if grbl_command == '?':
         grbl.write(str.encode(grbl_command)) # Send g-code block to grbl
         grbl_out = grbl.readline().strip()
     else:
-        print(grbl_command)
+        #print(grbl_command)
         writebuffer_byPass.append(grbl_command)
         grbl.write(str.encode(writebuffer_byPass[0])) # Send g-code block to grbl
         grbl_out = grbl.readline().strip()
+        #print(writebuffer_byPass)
         del writebuffer_byPass[0]
+    displayPosition_request(grbl_out)
+    infoScreen(grbl_out)
+    #print(grbl_out)
+
+def debugWrite(grbl_command):
+   
+    grbl.write(str.encode(grbl_command)) # Send g-code block to grbl
+    grbl_out = grbl.readline().strip()
     displayPosition_request(grbl_out)
     infoScreen(grbl_out)
     print(grbl_out)
@@ -374,8 +375,8 @@ z_up = Button(root, text="+Z",width = buttonsize_x, height = buttonsize_y,comman
 z_down = Button(root, text="-Z",width = buttonsize_x, height = buttonsize_y,command = lambda:jogWrite('Z', '-1', increments),bd = BORDER, bg = standard)
 
 zero_x = Button(root, text="zero X",width = buttonsize_x, height = 1, command = lambda:directWrite('G10 P0 L20 X0'),bd = BORDER)
-zero_y = Button(root, text="zero Y",width = buttonsize_x, height = 1, command = lambda:directWrite('G10 P0 L20 Y0' ),bd = BORDER)
-zero_z = Button(root, text="zero Z",width = buttonsize_x, height = 1, command = lambda:directWrite('G10 P0 L20 Z0' ),bd = BORDER)
+zero_y = Button(root, text="zero Y",width = buttonsize_x, height = 1, command = lambda:directWrite('G10 P0 L20 Y0'),bd = BORDER)
+zero_z = Button(root, text="zero Z",width = buttonsize_x, height = 1, command = lambda:directWrite('G10 P0 L20 Z0'),bd = BORDER)
 zero_all=Button(root, text="zeroAll",width = buttonsize_x, height = 3, command = lambda:latchWrite('G10'),bd = BORDER, bg= 'magenta')
 
 setzero =Button(root, text="SetPOS",width = buttonsize_x, height = buttonsize_y, command = lambda:directWrite('G28.1'),bd = BORDER)
@@ -510,7 +511,7 @@ terminal_recv.grid(row = 0, column = 8, padx =10, pady =10,rowspan = 7, columnsp
 
 mill_table.grid(row=0, column=4,padx=10, pady=10,columnspan = 4, rowspan = 7)
 
-sendGRBL()
+#sendGRBL()
 
 #BlockedButtons
 blkbuttons = (up,down,left,right,z_up,z_down, zero_x, zero_y, zero_z, zero_all, setzero, gozero, spindle)
