@@ -12,7 +12,8 @@ Should run on any System wit at least 1024x600 Screen Resolution.
 - Feed override
 - terminal
 
-![Alt text](https://github.com/BKLronin/touchCNC/blob/815d2489f842d86d124fcf1924b28de70ac289a3/Screen.png "Preview")
+![Screen](https://user-images.githubusercontent.com/6392076/133233601-8ef0e06f-e055-4677-8828-ed092aa37250.png)
+
 
 Tested on latest Armbian stable https://www.armbian.com/odroid-c2/#kernels-archive-all
 
