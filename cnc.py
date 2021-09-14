@@ -42,7 +42,7 @@ def grblConnect2():
             try:
                 #print([comport.device for comport in serial.tools.list_ports.comports()])
                 print ("Trying...",device)
-                grbl = serial.Serial(port= device, baudrate= 115200, timeout =3) #dsrdtr= True)
+                grbl = serial.Serial(port= device, baudrate= 115200, timeout =.5) #dsrdtr= True)
                 #grbl.open()
                 #print(grbl.readline())
                 grbl.write(str.encode("\r\n\r\n"))
@@ -223,7 +223,6 @@ def grblWrite():
 
 def timedPositionRequest():
     if grbl != 0 and freetosend == 1:
-
         grbl_command = '?'
         byPass(grbl_command)
     root.after(1000, timedPositionRequest)
