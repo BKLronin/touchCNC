@@ -1,4 +1,4 @@
-# touchCNC
+# touchCNC -not ready for production - TESTING STAGE
 GRBL 1.1 CNC Controller for ODROID C2 with VU PLus Touch Screen
 
 Should run on any System wit at least 1024x600 Screen Resolution. 
