@@ -15,6 +15,14 @@ writebuffer = []
 readbuffer = []
 AXIS = 'X'
 states = {'M3':'0', 'M8':'0', 'M6':'0', 'G10': '0'} #Spindle, Coolant, Toolchange
+dict_GCODE = {'G':'0',
+                'X':'0',
+                'Y':'0',
+                'Z':'0',
+                'I':'0',
+                'J':'0',
+                'F':'0'       
+                }
 
 #GUI Main
 buttonsize_x = 5
@@ -157,7 +165,7 @@ def infoScreen(data): #Anzeigecanvas für GRBL Rückmeldungen
         i=10
         terminal_recv.delete("all")
 
-def openGCODE(): #Dialog zur Gcode AUswahl und öffnen der Datei als GCODE Objekt
+def openGCODE(): #Dialog zur Gcode Auswahl und öffnen der Datei als GCODE Objekt
     global GCODE
 
     filetypes = (('GCODE', '*.nc'),('All files', '*.*'))
@@ -165,42 +173,50 @@ def openGCODE(): #Dialog zur Gcode AUswahl und öffnen der Datei als GCODE Objek
     
     if GCODE != 0:
         fopen.config(bg= loaded)
+        draw_GCODE(extract_GCODE())
     else:
         fopen.config(bg = 'grey')
-      
-    build_xy = findEnvelope() #Aufruf PLatz im Bauraum
-    mill_table.create_rectangle(build_xy[0],build_xy[1], fill = 'blue', stipple = 'gray75') # Zeichnen des Objekts im Bauraum      
+     
     
-def findEnvelope(): #get the max used Buildspace and position of the job
-    x_coords = []
-    y_coords = []    
-    coord_max = [0,1]
-    coord_min = [0,1]   
+    #build_xy = findEnvelope() #Aufruf PLatz im Bauraum
+    #mill_table.create_rectangle(build_xy[0],build_xy[1], fill = 'blue', stipple = 'gray75') # Zeichnen des Objekts im Bauraum      
 
-    for line in GCODE:         
-        l = line.strip(line) # Strip all EOL characters               
-        l = line.replace('X', '')
-        l2 = l.replace('Y', '')        
-        l2 = l2.split()     
+def extract_GCODE(): #Aufschlüsseln der enthaltenen Koordinaten in ein per Schlüssel zugängiges Dictionary
+    global dict_GCODE
+    list_dict_GCODE = []
+    for line in GCODE:
+        l = line.split() #Elemente trennen und in Liste konvertieren
+        for i in range(0,len(l)):
+            #print (l)
+            if 'G' in l[i]:                
+                dict_GCODE['G']  = l[i].replace('G','') #Wert einfügen und gleichzeitig G CODE befehl entfernen
+            if 'X' in l[i]:             
+                dict_GCODE['X']  = l[i].replace('X','')
+            if 'Y' in l[i]:
+                dict_GCODE['Y']  = l[i] .replace('Y','')   
+            if 'Z' in l[i]:
+                dict_GCODE['Z']  = l[i].replace('Z','')
+            if 'I' in l[i] and not 'ZMIN':
+                dict_GCODE['I']  = l[i].replace('I','')
+            if 'J' in l[i]:
+                dict_GCODE['J']  = l[i].replace('J','')
+            if 'F' in l[i] and not 'Fusion':
+                dict_GCODE['F']  = l[i].replace('F','')  
         
-        if len(l2) == 3: 
-            #print(l2)
-            x = l2[0]
-            if 'Z' not in x and 'X' in line and 'G0' not in x and 'G1' not in x:
-                x_coords.append(float(x))
-            y = l2[1]
-            if 'Z' not in y and 'Y' in line and 'G0' not in x and 'G1' not in x:
-                y_coords.append(float(y))        
-
-    x_coords.sort()
-    y_coords.sort()
+        #print(dict_GCODE)
+        list_dict_GCODE.append(dict_GCODE.copy()) #Copy notwendig da es sich nur um einen "Pointer" handelt der immer auf die zuletzt aktualisierte dict Zeile zeigt.
+    print(list_dict_GCODE)   
     
-    coord_max[0] = max(x_coords) +50
-    coord_max[1] = 350 - max(y_coords) #invertierte Buildplattform mit 0 unten links statt oben links
-    coord_min[0] = min(x_coords) +50
-    coord_min[1] = 350 - min(y_coords)      
-
-    return coord_min, coord_max
+    return list_dict_GCODE
+    
+def draw_GCODE(glist): #Zeichnen des GCodes zur Beurteilung des Bauraums
+    
+    for i in range(0,len(glist)-1):
+                
+        x_y_current = 50 + float(glist[i]['X']), 350 - float(glist[i]['Y'])
+        x_y_next = 50 + float(glist[i+1]['X']), 350 - float(glist[i+1]['Y'])        
+       
+        mill_table.create_line(x_y_current, x_y_next)
 
 def grblWrite():   
     #print("write1")
@@ -210,18 +226,17 @@ def grblWrite():
                 
     for line in GCODE:        
         #print("write")
-        l = line.strip() # Strip all EOL characters for streaming
-        
+        l = line.strip() # Strip all EOL characters for streaming        
         grbl_command = l
         #print("GCODE",grbl_command)
         bufferGRBL(grbl_command + '\n')       
     sendGRBL()       
     GCODE.close()
-    for button in blkbuttons:
+    for button in blkbuttons: #Ausgrauen blockierter Knöpfe während Fräsen. "Umschalter"
             switchButtonState(button)
     fopen.config(bg = 'grey')
 
-def timedPositionRequest():
+def timedPositionRequest():# >Im Falle das kein GCODE gestremed wird< Abfragen der Momentanen Position nach 1000ms sendet über den "byPass" channel der den GCode Stream nicht beeinflusst
     if grbl != 0 and freetosend == 1:
         grbl_command = '?'
         byPass(grbl_command)
@@ -301,6 +316,8 @@ def displayPosition_request(grbl_pos):
             show_ctrl_y.config(text = coordinates_list[2])
             show_ctrl_z.config(text = coordinates_list[3])
 
+            mill_table.create_line(coordinates_list[1],coordinates_list[2],coordinates_list[1],coordinates_list[2]+50, arrow = FIRST )
+            
             #show_ctrl_x_w.config(text = coordinates_list[4]) 
             #show_ctrl_y_w.config(text = coordinates_list[5])
             #show_ctrl_z_w.config(text = coordinates_list[6])
@@ -334,6 +351,9 @@ def displayPosition():
             show_ctrl_y.config(text = coordinates_list[2])
             show_ctrl_z.config(text = coordinates_list[3])
 
+            mill_table.create_line(coordinates_list[1],coordinates_list[2],coordinates_list[1]+10,coordinates_list[2]+20 )
+            mill_table.create_line(coordinates_list[1],coordinates_list[2],coordinates_list[1]-10,coordinates_list[2]+20 )
+            mill_table.create_line(coordinates_list[1]-10,coordinates_list[2]+20,coordinates_list[1]+10,coordinates_list[2]+20 )            
             #show_ctrl_x_w.config(text = coordinates_list[4]) 
             #show_ctrl_y_w.config(text = coordinates_list[5])
             #show_ctrl_z_w.config(text = coordinates_list[6])
@@ -424,8 +444,6 @@ show_ctrl_z =Label(root, text = "Z_POS", width = 8, height = 2, bg ='white', rel
 show_ctrl_x_w =Label(root, text = "X_POS_W", width = 8, height = 2, bg ='white', relief = SUNKEN, fg= 'black')
 show_ctrl_y_w =Label(root, text = "Y_POS_W", width = 8, height = 2, bg ='white', relief = SUNKEN, fg= 'black')
 show_ctrl_z_w =Label(root, text = "Z_POS_W", width = 8, height = 2, bg ='white', relief = SUNKEN, fg= 'black')
-
-
 
 #feed_control = Scale(root, orient = HORIZONTAL, length = 400, label = "Feedrate",tickinterval = 20)
 
