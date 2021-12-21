@@ -236,7 +236,7 @@ def grblWrite():
             switchButtonState(button)
     fopen.config(bg = 'grey')
 
-def timedPositionRequest():# >Im Falle das kein GCODE gestremed wird< Abfragen der Momentanen Position nach 1000ms sendet über den "byPass" channel der den GCode Stream nicht beeinflusst
+def timedPositionRequest():# >Im Falle das kein GCODE gestreamed wird abfragen der momentanen Position nach 1000ms sendet über den "byPass" channel der den GCode Stream nicht beeinflusst
     if grbl != 0 and freetosend == 1:
         grbl_command = '?'
         byPass(grbl_command)
@@ -254,7 +254,7 @@ def now_bufferGRBL(grbl_command):
 
 def byPass(grbl_command):
     global writebuffer_byPass
-    #print (grbl_command)
+    #print (grbl_command) 
     if grbl_command == '?':
         grbl.write(str.encode(grbl_command)) # Send g-code block to grbl
         grbl_out = grbl.readline().strip()
@@ -277,7 +277,7 @@ def debugWrite(grbl_command):
     infoScreen(grbl_out)
     print(grbl_out)
 
-def sendGRBL():    
+def sendGRBL(): #Komplette Gcodes streamen senden
     global writebuffer
     global freetosend
     
@@ -286,16 +286,21 @@ def sendGRBL():
         #print ("current",writebuffer[0])
         #print (writebuffer)
         grbl.write(str.encode(writebuffer[0])) # Send g-code block to grbl
+        #writeToFileLog(writebuffer[0])
         #grbl.timeout = None    
         readbuffer.append(grbl.readline().strip()) # Wait for grbl response with carriage return
         del writebuffer[0]
 
         if len(readbuffer) == 5:
-            writebuffer.insert(2,'?')
+            writebuffer.insert(2,'?' + '\n') #newline need?
             displayPosition()
             infoScreen(readbuffer[0])
             readbuffer.clear()
     freetosend = 1
+
+def writeToFileLog(log): #Log für Debugzwecke
+    with open("log.txt", 'a') as out:
+        out.write(log)
 
 def displayPosition_request(grbl_pos):     
     if grbl != 0 :        
