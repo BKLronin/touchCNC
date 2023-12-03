@@ -5,10 +5,14 @@ import serial.tools.list_ports
 from tkinter import filedialog as fd
 import os
 import threading
+import grbl_gcode_send
+import grbl_stream
 
 grbl = 0
+port = None
 i = 10
 GCODE = 0
+gcode_to_stream = []
 countbuf = 0
 writebuffer_byPass = []
 writebuffer = []
@@ -41,6 +45,7 @@ feed = '#283B67'
 
 def grblConnect2():
     global grbl
+    global port
 
     #Serial Connection
     locations=['/dev/ttyACM0','/dev/ttyUSB0','/dev/ttyUSB1','/dev/ttyACM1','/dev/ttyACM2','/dev/ttyACM3',
@@ -51,6 +56,7 @@ def grblConnect2():
                 #print([comport.device for comport in serial.tools.list_ports.comports()])
                 print ("Trying...",device)
                 grbl = serial.Serial(port= device, baudrate= 115200, timeout =.5) #dsrdtr= True)
+                port = device
                 #grbl.open()
                 #print(grbl.readline())
                 grbl.write(str.encode("\r\n\r\n"))
@@ -75,11 +81,7 @@ def jogWrite(AXIS, CMD, scale): #Schreiben von manuellen Positionierungsbefehlen
     MOVE = int(CMD) * DECIMAL[scale -1]     
     grbl_command = ('$J=G91' + 'G21' + AXIS + str(MOVE)+ 'F1000')    
     #print(grbl_command) $J=G91G21X10F185
-    if freetosend == 1: 
-        byPass(grbl_command+'\n')        
-    else:
-        for button in blkbuttons:
-            switchButtonState(button)
+    grbl_gcode_send.send_gcode(grbl, grbl_command)
 
 def switchButtonState(button): #Umschalter für Knopfstatus
     if button["state"] == DISABLED:
@@ -91,10 +93,9 @@ def directWrite(CMD): #Direktes schreiben eines Befehls
     global freetosend
     #print(freetosend)
     grbl_command = CMD 
-    if freetosend == 0:           
-        now_bufferGRBL(grbl_command + '\n')
-    else:
-        byPass(grbl_command + '\n')
+
+    grbl_gcode_send.send_gcode(grbl, grbl_command)
+
 
 def latchWrite(CMD):
     global states 
@@ -141,19 +142,16 @@ def latchWrite(CMD):
     #print(grbl_command)
     #print(states)
     
-    if freetosend == 0:
-        now_bufferGRBL(grbl_command + '\n')
-    else:
-        byPass(grbl_command + '\n')
-    print(grbl_command)
+
+    grbl_gcode_send.send_gcode(grbl, grbl_command)
+
 
 def terminalWrite(): #Holt Zeichenstring von Editfeld und sendet es
     grbl_command = terminal.get()
     #print(grbl_command)
-    if freetosend == 0:           
-        now_bufferGRBL(grbl_command + '\n')
-    else:
-        byPass(grbl_command+'\n')
+
+    grbl_gcode_send.send_gcode(grbl, grbl_command)
+
 
 def infoScreen(data): #Anzeigecanvas für GRBL Rückmeldungen
     global i
@@ -166,14 +164,16 @@ def infoScreen(data): #Anzeigecanvas für GRBL Rückmeldungen
         terminal_recv.delete("all")
 
 def openGCODE(): #Dialog zur Gcode Auswahl und öffnen der Datei als GCODE Objekt
-    global GCODE
-
+    global gcode_to_stream
     filetypes = (('GCODE', '*.nc'),('All files', '*.*'))
     GCODE = fd.askopenfile(title='Open a file', initialdir='/home/thomas/Nextcloud/CAM/', filetypes=filetypes)
     
     if GCODE != 0:
         fopen.config(bg= loaded)
-        draw_GCODE(extract_GCODE())
+        extracted = extract_GCODE(GCODE)
+        draw_GCODE(extracted)
+        gcode_to_stream = GCODE
+
     else:
         fopen.config(bg = 'grey')
      
@@ -181,10 +181,10 @@ def openGCODE(): #Dialog zur Gcode Auswahl und öffnen der Datei als GCODE Objek
     #build_xy = findEnvelope() #Aufruf PLatz im Bauraum
     #mill_table.create_rectangle(build_xy[0],build_xy[1], fill = 'blue', stipple = 'gray75') # Zeichnen des Objekts im Bauraum      
 
-def extract_GCODE(): #Aufschlüsseln der enthaltenen Koordinaten in ein per Schlüssel zugängiges Dictionary
-    global dict_GCODE
+def extract_GCODE(gcode: list): #Aufschlüsseln der enthaltenen Koordinaten in ein per Schlüssel zugängiges Dictionary
+
     list_dict_GCODE = []
-    for line in GCODE:
+    for line in gcode:
         l = line.split() #Elemente trennen und in Liste konvertieren
         for i in range(0,len(l)):
             #print (l)
@@ -217,86 +217,6 @@ def draw_GCODE(glist): #Zeichnen des GCodes zur Beurteilung des Bauraums
         x_y_next = 50 + float(glist[i+1]['X']), 350 - float(glist[i+1]['Y'])        
        
         mill_table.create_line(x_y_current, x_y_next)
-
-def grblWrite():   
-    #print("write1")
-    global writebuffer
-    
-    GCODE.seek(0)
-                
-    for line in GCODE:        
-        #print("write")
-        l = line.strip() # Strip all EOL characters for streaming        
-        grbl_command = l
-        #print("GCODE",grbl_command)
-        bufferGRBL(grbl_command + '\n')       
-    sendGRBL()       
-    GCODE.close()
-    for button in blkbuttons: #Ausgrauen blockierter Knöpfe während Fräsen. "Umschalter"
-            switchButtonState(button)
-    fopen.config(bg = 'grey')
-
-def timedPositionRequest():# >Im Falle das kein GCODE gestreamed wird abfragen der momentanen Position nach 1000ms sendet über den "byPass" channel der den GCode Stream nicht beeinflusst
-    if grbl != 0 and freetosend == 1:
-        grbl_command = '?'
-        byPass(grbl_command)
-    root.after(1000, timedPositionRequest)
-
-def bufferGRBL(grbl_command):
-    global writebuffer
-    writebuffer.append(grbl_command)
-    #print (len(writebuffer))
-
-def now_bufferGRBL(grbl_command):
-    global writebuffer
-    writebuffer.insert(1,grbl_command)
-    #print (len(writebuffer))
-
-def byPass(grbl_command):
-    global writebuffer_byPass
-    #print (grbl_command) 
-    if grbl_command == '?':
-        grbl.write(str.encode(grbl_command)) # Send g-code block to grbl
-        grbl_out = grbl.readline().strip()
-    else:
-        #print(grbl_command)
-        writebuffer_byPass.append(grbl_command)
-        grbl.write(str.encode(writebuffer_byPass[0])) # Send g-code block to grbl
-        grbl_out = grbl.readline().strip()
-        #print(writebuffer_byPass)
-        del writebuffer_byPass[0]
-    displayPosition_request(grbl_out)
-    infoScreen(grbl_out)
-    #print(grbl_out)
-
-def debugWrite(grbl_command):
-   
-    grbl.write(str.encode(grbl_command)) # Send g-code block to grbl
-    grbl_out = grbl.readline().strip()
-    displayPosition_request(grbl_out)
-    infoScreen(grbl_out)
-    print(grbl_out)
-
-def sendGRBL(): #Komplette Gcodes streamen senden
-    global writebuffer
-    global freetosend
-    
-    while len(writebuffer) >0:
-        freetosend = 0
-        #print ("current",writebuffer[0])
-        #print (writebuffer)
-        grbl.write(str.encode(writebuffer[0])) # Send g-code block to grbl
-        #writeToFileLog(writebuffer[0])
-        #grbl.timeout = None    
-        readbuffer.append(grbl.readline().strip()) # Wait for grbl response with carriage return
-        del writebuffer[0]
-
-        if len(readbuffer) == 5:
-            writebuffer.insert(2,'?' + '\n') #newline need?
-            displayPosition()
-            infoScreen(readbuffer[0])
-            readbuffer.clear()
-    freetosend = 1
 
 def writeToFileLog(log): #Log für Debugzwecke
     with open("log.txt", 'a') as out:
@@ -366,11 +286,19 @@ def displayPosition():
         except:
             pass
             #print("Listerror")
-        
 
     else:
         print("Serial Busy")
     #root.after(1000,displayPosition) 
+
+def grblWrite():
+    if gcode_to_stream != None:
+        print("Stream", gcode_to_stream)
+        grbl_gcode_send.send_gcode(grbl, gcode_to_stream)
+
+    #fdbk = grbl_gcode_send.send_gcode(grbl, line)
+    #print(fdbk)
+    grbl_gcode_send.wait_for_buffer_empty()
 
 def grblClose():
     # Close file and serial port
@@ -385,8 +313,9 @@ def grblClose():
 root = Tk()
 root.title('touchCNC')
 root.geometry('1024x600+0+0')
+root.geometry('1024x600+0+0')
 root.resizable(False,False)#17203b
-root.attributes('-fullscreen', True)
+root.attributes('-fullscreen', False)
 root.tk_setPalette(background='#11192C', foreground='white',activeBackground='#283867', activeForeground='white' )
 
 increments = IntVar()
@@ -538,7 +467,8 @@ mill_table.grid(row=0, column=4,padx=10, pady=10,columnspan = 4, rowspan = 7)
 #BlockedButtons
 blkbuttons = (up,down,left,right,z_up,z_down, zero_x, zero_y, zero_z, zero_all, setzero, gozero, spindle)
 
-timedPositionRequest()
+
+#timedPositionRequest()
   
 root.mainloop()
 
