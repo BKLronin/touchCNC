@@ -149,6 +149,8 @@ class touchCNC:
                 gitter_x = self.mill_table.create_line(x, 0, x, 400)
                 gitter_y = self.mill_table.create_line(0, y, 400, y)
 
+        self.mill_table_draw_layer =Canvas(root, width=400, height=400, bg='grey')
+
         self.movement.grid(row=0, column=0, columnspan=3, rowspan=1)
         self.left.grid(row=1, column=0, padx=3, pady=2)
         self.right.grid(row=1, column=2, padx=3, pady=2)
@@ -213,6 +215,9 @@ class touchCNC:
         # self.feed_control.grid(row = 8, column = 4, columnspan =4)
 
         self.mill_table.grid(row=0, column=4, padx=10, pady=10, columnspan=4, rowspan=7)
+        #self.mill_table_draw_layer.grid(row=0, column=4, padx=10, pady=10, columnspan=4, rowspan=7)
+
+        self.cursor_id = None
 
         # sendGRBL()
 
@@ -220,7 +225,7 @@ class touchCNC:
         self.blkbuttons = (self.up, self.down, self.left, self.right, self.z_up, self.z_down, self.zero_x, self.zero_y,
                            self.zero_z, self.zero_all, self.setzero, self.gozero, self.spindle)
         # Initialize the counter
-
+        self.table = DrawWorkingtable(self.mill_table)
 
     def on_zero_position(self, label, pos):
         print("Updated", pos)
@@ -234,8 +239,19 @@ class touchCNC:
         print("GUI CALLBACK: event={} data={}".format(eventstring.ljust(30), ", ".join(args)))
 
         if eventstring == "on_stateupdate":
-            print("stateupdate")
-            self.on_zero_position(self.show_ctrl_x, data[0])
+            print("stateupdate", data)
+            self.on_zero_position(self.show_ctrl_x, data[2][0])
+            self.on_zero_position(self.show_ctrl_y, data[2][1])
+            self.on_zero_position(self.show_ctrl_z, data[2][2])
+
+            pos = [data[2][0], data[2][1]]
+            #self.table.drawgridTable()
+            self.table.setPos(pos)
+
+            self.table.deleteCursor(self.cursor_id)
+            self.cursor_id = self.table.drawToolCursor()
+
+
         if eventstring == "on_hash_stateupdate":
             print("args", type(data[0]))
 
@@ -243,17 +259,11 @@ class touchCNC:
 
     def grblConnect2(self):
         grbl.cnect("/dev/ttyUSB0", 115200)  # or /dev/ttyACM0
+        time.sleep(2)
         if grbl.connected:
             grbl.poll_start()
         else:
-            print("wtf")
-
-    def displayToolPosition(self):
-        print("update")
-        self.show_ctrl_x.config(text=grbl.cmpos[0])
-        self.show_ctrl_y.config(text=grbl.cmpos[1])
-        self.show_ctrl_z.config(text=grbl.cmpos[2])
-        #self.root.after(1000, self.getPosition)
+            print("wtf -couldnt start thread")
 
     def displayWorkPosition(self, pos: list):
         print("update", pos)
@@ -331,7 +341,12 @@ class touchCNC:
         if GCODE != 0:
             self.fopen.config(bg=self.loaded)
             extracted = self.extract_GCODE(GCODE)
-            self.draw_GCODE(extracted)
+            draw = DrawWorkingtable(self.mill_table)
+            draw.drawgridTable()
+            draw.setGCODE(extracted)
+            draw.draw_GCODE()
+
+
             grbl.load_file(GCODE)
 
         else:
@@ -375,7 +390,49 @@ class touchCNC:
 
             return list_dict_GCODE
 
+    def grblClose(self):
+        grbl.disconnect()
+
+class DrawWorkingtable:
+    def __init__(self, mill_table: object):
+        self.mill_table = mill_table
+        self.gcode: list = None
+        self.cursor_pos = None
+
+    def setPos(self,pos):
+        if pos != None:
+            self.cursor_pos = pos
+
+    def setGCODE(self, gcode:list):
+        if gcode != None:
+            self.gcode = gcode
+
+    def clearTable(self):
+        self.mill_table.delete('all')
+
+    def drawToolCursor(self):
+
+        id = self.mill_table.create_text(50 + float(self.cursor_pos[0]), 350 - float(self.cursor_pos[1]), text='V', fill = 'red')
+
+        return id
+
+    def deleteCursor(self, id):
+        if id != None:
+            print("deleted")
+            self.mill_table.delete(id)
+
+    def draw_GCODE(self):  # Zeichnen des GCodes zur Beurteilung des Bauraums
+        glist = self.gcode
+        self.drawgridTable()
+
+        for i in range(0, len(glist) - 1):
+            x_y_current = 50 + float(glist[i]['X']), 350 - float(glist[i]['Y'])
+            x_y_next = 50 + float(glist[i + 1]['X']), 350 - float(glist[i + 1]['Y'])
+
+            self.mill_table.create_line(x_y_current, x_y_next)
+
     def drawgridTable(self):
+        self.mill_table.delete('all')
 
         self.mill_table.create_rectangle(50, 50, 350, 350, fill='white')
         self.mill_table.create_text(200, 25, text='Fräsbereich 300mm x 300mm')
@@ -387,19 +444,6 @@ class touchCNC:
             for y in range(0, 400, 50):
                 gitter_x = self.mill_table.create_line(x, 0, x, 400)
                 gitter_y = self.mill_table.create_line(0, y, 400, y)
-
-    def draw_GCODE(self, glist):  # Zeichnen des GCodes zur Beurteilung des Bauraums
-        self.mill_table.delete('all')
-        self.drawgridTable()
-
-        for i in range(0, len(glist) - 1):
-            x_y_current = 50 + float(glist[i]['X']), 350 - float(glist[i]['Y'])
-            x_y_next = 50 + float(glist[i + 1]['X']), 350 - float(glist[i + 1]['Y'])
-
-            self.mill_table.create_line(x_y_current, x_y_next)
-
-    def grblClose(self):
-        grbl.disconnect()
 
 
     print("test")
