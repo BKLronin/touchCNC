@@ -411,7 +411,6 @@ class DrawWorkingtable:
         self.mill_table.delete('all')
 
     def drawToolCursor(self):
-
         id = self.mill_table.create_text(50 + float(self.cursor_pos[0]), 350 - float(self.cursor_pos[1]), text='V', fill = 'red')
 
         return id
