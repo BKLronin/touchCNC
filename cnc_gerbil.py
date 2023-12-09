@@ -34,8 +34,9 @@ class touchCNC:
         self.loaded = 'green'
         self.cooling = 'blue'
         self.toolchange = 'yellow'
-        self.standard = '#17223B'
-        self.feed = '#283B67'
+        self.standard = '#254164'
+        self.feed = self.standard
+        self.transport = '#3A5F8B'
 
         self.increments = IntVar()
         self.movement = Frame(root, relief='ridge', bd=self.BORDER)
@@ -64,32 +65,32 @@ class touchCNC:
         self.setzero = Button(root, text="SetPOS", width=self.buttonsize_x, height=self.buttonsize_y,
                          command=lambda: self.directWrite('G28.1'), bd=self.BORDER)
         self.gozero = Button(root, text="GoPOS", width=self.buttonsize_x, height=self.buttonsize_y, command=lambda: self.directWrite('G28'),
-                        bd=self.BORDER)
+                        bd=self.BORDER , bg= self.attention)
 
         self.connect_ser = Button(root, text="Cnnct", width=self.buttonsize_x, height=self.buttonsize_y,
                                   command=self.grblConnect2, bg='grey', bd=self.BORDER)
         self.discon_ser = Button(root, text="Dsconct", width=self.buttonsize_x, height=self.buttonsize_y, command= self.grblClose,
                             bd=self.BORDER)
-        self.unlock = Button(root, text="Unlock", width=self.buttonsize_x, height=self.buttonsize_y, command=lambda: self.directWrite('$X'),
+        self.unlock = Button(root, text="Unlock", width=self.buttonsize_x, height=self.buttonsize_y, command=self.grblUnlock,
                         bd=self.BORDER)
         self.start = Button(root, text="START", width=self.buttonsize_x, height=self.buttonsize_y, bg=self.attention,
                        command=self.grblWrite, bd=self.BORDER)
-        self.stop = Button(root, text="STOP", width=self.buttonsize_x, height=self.buttonsize_y, bd=self.BORDER,
+        self.stop = Button(root, text="STOP", width=self.buttonsize_x, height=self.buttonsize_y, bd=self.BORDER, bg=self.transport,
                       command=self.grblStop)
-        self.pause = Button(root, text="PAUSE", width=self.buttonsize_x, height=self.buttonsize_y, bg=self.cooling, bd=self.BORDER,
+        self.pause = Button(root, text="PAUSE", width=self.buttonsize_x, height=self.buttonsize_y, bd=self.BORDER, bg=self.transport,
                        command=self.grblPause)
-        self.resume = Button(root, text="RESUME", width=self.buttonsize_x, height=self.buttonsize_y, bd=self.BORDER,
-                        command=lambda: self.directWrite('~'))
+        self.resume = Button(root, text="RESUME", width=self.buttonsize_x, height=self.buttonsize_y, bd=self.BORDER, bg=self.transport,
+                        command=self.grblResume)
 
         self.fopen = Button(root, text="GCODE", width=self.buttonsize_x, height=self.buttonsize_y, bg='grey', fg='black',
                        command=self.openGCODE, bd=self.BORDER)
 
-        self.spindle = Button(root, text="Spindle", width=self.buttonsize_x, height=self.buttonsize_y,
+        self.spindle = Button(root, text="Spindle", width=self.buttonsize_x, height=self.buttonsize_y, bg=self.standard,
                          command=lambda: self.latchWrite('M3'))
-        self.coolant = Button(root, text="Coolant", width=self.buttonsize_x, height=self.buttonsize_y,
+        self.coolant = Button(root, text="Coolant", width=self.buttonsize_x, height=self.buttonsize_y, bg=self.standard,
                          command=lambda: self.latchWrite('M8'))
-        self.tool = Button(root, text="Tool", width=self.buttonsize_x, height=self.buttonsize_y, command=lambda: self.latchWrite('M6'))
-        self.macro = Button(root, text="Macro1", width=self.buttonsize_x, height=self.buttonsize_y,
+        self.tool = Button(root, text="Tool", width=self.buttonsize_x, height=self.buttonsize_y, bg=self.standard, command=lambda: self.latchWrite('M6'))
+        self.macro = Button(root, text="Macro1", width=self.buttonsize_x, height=self.buttonsize_y, bg=self.standard,
                        command=lambda: self.directWrite(' G91 G0 X10 Y10 Z50 F1000'))
 
         self.inc1 = Button(root, text="Inc 1%", width=self.buttonsize_x, height=self.buttonsize_y, command=lambda: self.directWrite('‘'),
@@ -225,7 +226,7 @@ class touchCNC:
         self.blkbuttons = (self.up, self.down, self.left, self.right, self.z_up, self.z_down, self.zero_x, self.zero_y,
                            self.zero_z, self.zero_all, self.setzero, self.gozero, self.spindle)
         # Initialize the counter
-        self.table = DrawWorkingtable(self.mill_table)
+        self.table = DrawonTable(self.mill_table)
 
     def on_zero_position(self, label, pos):
         print("Updated", pos)
@@ -262,11 +263,13 @@ class touchCNC:
         time.sleep(2)
         if grbl.connected:
             grbl.poll_start()
+            self.connect_ser.config(bg = self.loaded)
+
         else:
             print("wtf -couldnt start thread")
 
     def displayWorkPosition(self, pos: list):
-        print("update", pos)
+        #print("update", pos)
         self.show_ctrl_x_w.config(text = pos[0])
         self.show_ctrl_y_w.config(text = pos[1])
         self.show_ctrl_z_w.config(text = pos[2])
@@ -284,53 +287,38 @@ class touchCNC:
     def directWrite(self,cmd):
         grbl.send_immediately(cmd)
 
-    def latchWrite(self, CMD):        
-        
+    def latchWrite(self, CMD):
         if self.states[CMD] == '0':
             self.states[CMD] = '1'
-            if CMD == 'M3':
-                self.spindle.config(bg=self.attention)  # A31621
-            if CMD == 'M6':
-                self.tool.config(bg=self.toolchange)  # E0CA3C
-            if CMD == 'G10':
-                self.zero_all.config(bg=self.loaded)
-
+            self.update_button_color(CMD, True)
         else:
             self.states[CMD] = '0'
-            if CMD == 'M3':
-                self.spindle.config(bg=self.loaded)  # A2D729
-            if CMD == 'M6':
-                self.tool.config(bg='grey')
-            # if CMD == 'G10':
-            #    zero_all.config(bg= attention)
+            self.update_button_color(CMD, False)
 
-        if CMD == 'M3':
-            if self.states['M3'] == '1':
-                grbl_command = 'M3 S1000'
-            else:
-                grbl_command = 'M3 S0'
-
-        elif CMD == 'M8':
-            if self.states['M8'] == '1':
-                grbl_command = (CMD)
-                self.coolant.config(bg=self.cooling)  # 1F7A8C
-            else:
-                grbl_command = 'M9'
-                self.coolant.config(bg='grey')
-
-        elif CMD == 'G10':
-            grbl_command = 'G10 P0 L20 X0 Y0 Z0'
-
-        else:
-            grbl_command = (CMD)
-
-            # grbl_command = (CMD * int(self.[CMD]) )   
-        # print(grbl_command)
-        # print(self.)
-
+        grbl_command = self.get_grbl_command(CMD)
         grbl.send_immediately(grbl_command)
 
-    def overrideCMD(self,cmd):
+    def update_button_color(self, CMD, is_active):
+        if CMD == 'M3':
+            self.spindle.config(bg=self.attention if is_active else self.loaded)
+        elif CMD == 'M6':
+            self.tool.config(bg=self.toolchange if is_active else self.standard)
+        elif CMD == 'G10':
+            self.zero_all.config(bg=self.loaded if is_active else self.attention)
+
+        if CMD == 'M8':
+            self.coolant.config(bg=self.cooling if is_active else self.standard)
+
+    def get_grbl_command(self, CMD):
+        if CMD == 'M3':
+            return 'M3 S1000' if self.states['M3'] == '1' else 'M3 S0'
+        elif CMD == 'M8':
+            return CMD if self.states[CMD] == '1' else 'M9'
+        elif CMD == 'G10':
+            return 'G10 P0 L20 X0 Y0 Z0'
+        else:
+            return CMD
+    def overrideCMD(self, cmd):
         pass
         #grbl.
 
@@ -341,11 +329,10 @@ class touchCNC:
         if GCODE != 0:
             self.fopen.config(bg=self.loaded)
             extracted = self.extract_GCODE(GCODE)
-            draw = DrawWorkingtable(self.mill_table)
+            draw = DrawonTable(self.mill_table)
             draw.drawgridTable()
             draw.setGCODE(extracted)
             draw.draw_GCODE()
-
 
             grbl.load_file(GCODE)
 
@@ -354,11 +341,19 @@ class touchCNC:
 
     def grblWrite(self):
         grbl.job_run()
+
     def grblStop(self):
-        grbl.abort()
+        grbl.job_halt()
 
     def grblPause(self):
         grbl.hold()
+        self.pause.config(bg='red')
+    def grblResume(self):
+        grbl.resume()
+        self.pause.config(bg=self.transport)
+    def grblUnlock(self):
+        grbl.killalarm()
+
 
     def extract_GCODE(self, gcode_path: str):  # Aufschlüsseln der enthaltenen Koordinaten in ein per Schlüssel zugängiges Dictionary
         with open(gcode_path, 'r') as gcode:
@@ -386,14 +381,15 @@ class touchCNC:
                         # print(dict_GCODE)
                 list_dict_GCODE.append(
                     self.dict_GCODE.copy())  # Copy notwendig da es sich nur um einen "Pointer" handelt der immer auf die zuletzt aktualisierte dict Zeile zeigt.
-            print(list_dict_GCODE)
+            #print(list_dict_GCODE)
 
             return list_dict_GCODE
 
     def grblClose(self):
         grbl.disconnect()
+        self.connect_ser.config(bg='grey')
 
-class DrawWorkingtable:
+class DrawonTable:
     def __init__(self, mill_table: object):
         self.mill_table = mill_table
         self.gcode: list = None
@@ -411,13 +407,13 @@ class DrawWorkingtable:
         self.mill_table.delete('all')
 
     def drawToolCursor(self):
-        id = self.mill_table.create_text(50 + float(self.cursor_pos[0]), 350 - float(self.cursor_pos[1]), text='V', fill = 'red')
+        id = self.mill_table.create_text(50 + float(self.cursor_pos[0]), 345 - float(self.cursor_pos[1]), text='V', fill = 'red')
 
         return id
 
     def deleteCursor(self, id):
         if id != None:
-            print("deleted")
+            #print("deleted")
             self.mill_table.delete(id)
 
     def draw_GCODE(self):  # Zeichnen des GCodes zur Beurteilung des Bauraums
@@ -444,8 +440,6 @@ class DrawWorkingtable:
                 gitter_x = self.mill_table.create_line(x, 0, x, 400)
                 gitter_y = self.mill_table.create_line(0, y, 400, y)
 
-
-    print("test")
 
 if __name__ == "__main__":
     root = Tk()
