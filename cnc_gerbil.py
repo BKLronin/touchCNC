@@ -1,5 +1,5 @@
 import time
-from tkinter import Button, Label, Variable, IntVar, Canvas, Frame, Listbox, Entry, Radiobutton, Tk, constants
+from tkinter import Button, Label, Variable, IntVar, Canvas, Frame, Listbox, Entry, Radiobutton, Tk, constants, LEFT
 from tkinter import filedialog as fd
 import os
 from gerbil.gerbil import Gerbil
@@ -19,7 +19,7 @@ class touchCNC:
         self.list_items = Variable(value=self.file_list)
         self.increments = 0
         self.BORDER = 2
-        self.states = {'M3': '0', 'M8': '0', 'M6': '0', 'G10': '0'}  # self.spindle, Coolant, Toolchange
+        self.states = {'M3': '0', 'M8': '0', 'M6': '0', 'G10': '0', '32' :0}  # self.spindle, Coolant, Toolchange
 
         self.dict_GCODE = {'G': '0',
                       'X': '0',
@@ -99,8 +99,8 @@ class touchCNC:
         self.coolant = Button(root, text="Coolant", width=self.buttonsize_x, height=self.buttonsize_y, bg=self.standard,
                          command=lambda: self.latchWrite('M8'))
         self.tool = Button(root, text="Tool", width=self.buttonsize_x, height=self.buttonsize_y, bg=self.standard, command=lambda: self.latchWrite('M6'))
-        self.macro = Button(root, text="Macro1", width=self.buttonsize_x, height=self.buttonsize_y, bg=self.standard,
-                       command=lambda: self.directWrite(' G91 G0 X10 Y10 Z50 F1000'))
+        self.macro = Button(root, text="Laser", width=self.buttonsize_x, height=self.buttonsize_y, bg=self.standard,
+                       command=lambda: self.latchWrite('32')) #self.directWrite(' G91 G0 X10 Y10 Z50 F1000'))
 
         self.inc1 = Button(root, text="Inc 1%", width=self.buttonsize_x, height=self.buttonsize_y, command=lambda: self.directWrite('‘'),
                       bg=self.feed)
@@ -126,12 +126,12 @@ class touchCNC:
                                  height=self.buttonsize_y, indicatoron=0, bg=self.secondary)
         self.step_incr2.select()
 
-        self.files = Listbox(root, bg='white', fg='black')
+        self.files = Listbox(root, bg='white', fg='black',font=("Arial", 16))
         self.terminal = Entry(root,  text="GCODE", fg= 'white')
         self.terminal_send = Button(root, text="SEND",  bd=3,command=lambda: self.directWrite('‘'))
 
         self.terminal_recv = Label(root, bg='white', fg='black', text="Message Type")
-        self.terminal_recv_content = Label(root, bg='white', fg='black', text="Data")
+        self.terminal_recv_content = Label(root, bg='white', fg='black', width= 35, wraplength=200, anchor=constants.W, justify=LEFT)
 
         self.terminal_recv_progress = Label(root, bg='white', fg='black', text="Progress")
         self.terminal_recv_feed = Label(root, bg='white', fg='black', text="Feed")
@@ -225,8 +225,8 @@ class touchCNC:
         self.terminal_send.grid(row=7, column=9, padx=2, pady=self.pady_var)
 
         self.files.grid(row=0, column=8, padx=10, pady=self.pady_var, rowspan=3, columnspan=2, sticky="nsew")
-        self.terminal_recv.grid(row=3, column=8, padx=10, pady=self.pady_var, columnspan=2, sticky="nsew")
-        self.terminal_recv_content.grid(row=4, column=8, padx=10, pady=self.pady_var, columnspan=2, sticky="nsew")
+        #self.terminal_recv.grid(row=3, column=8, padx=10, pady=self.pady_var, columnspan=2, sticky="nsew")
+        self.terminal_recv_content.grid(row=3, column=8, padx=10, pady=self.pady_var,rowspan=2, columnspan=2, sticky="nsew")
         self.terminal_recv_progress.grid(row=5, column=8, padx=10, pady=self.pady_var, columnspan=2, sticky="nsew")
         self.terminal_recv_feed.grid(row=6, column=8, padx=10, pady=self.pady_var, columnspan=2, sticky="nsew")
         self.mill_table.grid(row=0, column=4, padx=10, pady=self.pady_var, columnspan=4, rowspan=7, sticky="nsew")
@@ -328,21 +328,31 @@ class touchCNC:
     def update_button_color(self, CMD, is_active):
         if CMD == 'M3':
             self.spindle.config(bg=self.attention if is_active else self.loaded)
+
         elif CMD == 'M6':
             self.tool.config(bg=self.toolchange if is_active else self.standard)
+
         elif CMD == 'G10':
             self.zero_all.config(bg=self.loaded if is_active else self.attention)
 
-        if CMD == 'M8':
+        elif CMD == '32':
+            self.macro.config(bg=self.loaded if is_active else self.attention)
+
+        elif CMD == 'M8':
             self.coolant.config(bg=self.cooling if is_active else self.standard)
 
     def get_grbl_command(self, CMD):
         if CMD == 'M3':
             return 'M3 S1000' if self.states['M3'] == '1' else 'M3 S0'
+
         elif CMD == 'M8':
             return CMD if self.states[CMD] == '1' else 'M9'
+
         elif CMD == 'G10':
             return 'G10 P0 L20 X0 Y0 Z0'
+
+        elif CMD == '32':
+            return '$32=0' if self.states['32'] == '1' else '$32=1'
         else:
             return CMD
     def overrideCMD(self, cmd):
