@@ -1,3 +1,4 @@
+import logging
 import time
 from tkinter import Button, Label, Variable, IntVar, Canvas, Frame, Listbox, Entry, Radiobutton, Tk, constants, LEFT
 from tkinter import filedialog as fd
@@ -11,14 +12,17 @@ class touchCNC:
         self.root = root
 
         # GUI Main
+        self.stick_var = None
+        self.stick_var_disp = 'NSWE'
         self.buttonsize_x = 5
         self.buttonsize_y = 3
         self.buttonsize_y_s = 1
-        self.pady_var = 5
+        self.pady_var = 3
         self.file_list = []
         self.list_items = Variable(value=self.file_list)
         self.increments = 0
         self.BORDER = 2
+        self.feedspeed = None
         self.states = {'M3': '0', 'M8': '0', 'M6': '0', 'G10': '0', '32' :0}  # self.spindle, Coolant, Toolchange
 
         self.dict_GCODE = {'G': '0',
@@ -98,19 +102,19 @@ class touchCNC:
                          command=lambda: self.latchWrite('M3'))
         self.coolant = Button(root, text="Coolant", width=self.buttonsize_x, height=self.buttonsize_y, bg=self.standard,
                          command=lambda: self.latchWrite('M8'))
-        self.tool = Button(root, text="Tool", width=self.buttonsize_x, height=self.buttonsize_y, bg=self.standard, command=lambda: self.latchWrite('M6'))
+        self.tool = Button(root, text="Tool", width=self.buttonsize_x, height=self.buttonsize_y, bg=self.standard, command=lambda: self.directWrite('G10'))
         self.macro = Button(root, text="Laser", width=self.buttonsize_x, height=self.buttonsize_y, bg=self.standard,
                        command=lambda: self.latchWrite('32')) #self.directWrite(' G91 G0 X10 Y10 Z50 F1000'))
 
-        self.inc1 = Button(root, text="Inc 1%", width=self.buttonsize_x, height=self.buttonsize_y, command=lambda: self.directWrite('‘'),
+        self.inc1 = Button(root, text="Inc 1%", width=self.buttonsize_x, height=self.buttonsize_y, command=lambda: self.feed_over_write(1),
                       bg=self.feed)
-        self.inc10 = Button(root, text="Inc 10%", width=self.buttonsize_x, height=self.buttonsize_y, command=lambda: self.directWrite('“'),
+        self.inc10 = Button(root, text="Inc 10%", width=self.buttonsize_x, height=self.buttonsize_y, command=lambda: self.feed_over_write(10),
                        bg=self.feed)
-        self.dec1 = Button(root, text="Dec 1%", width=self.buttonsize_x, height=self.buttonsize_y, command=lambda: self.directWrite('”'),
+        self.dec1 = Button(root, text="Dec 1%", width=self.buttonsize_x, height=self.buttonsize_y, command=lambda: self.feed_over_write(-1),
                       bg=self.feed)
-        self.dec10 = Button(root, text="Dec 10%", width=self.buttonsize_x, height=self.buttonsize_y, command=lambda: self.directWrite('’'),
+        self.dec10 = Button(root, text="Dec 10%", width=self.buttonsize_x, height=self.buttonsize_y, command=lambda: self.feed_over_write(-10),
                        bg=self.feed)
-        self.reset = Button(root, text="<RESET", width=self.buttonsize_x, height=self.buttonsize_y, command=lambda: self.directWrite(''),
+        self.reset = Button(root, text="<RESET", width=self.buttonsize_x, height=self.buttonsize_y, command=lambda: self.feed_over_write(0),
                        bg=self.secondary)
 
         self.reboot = Button(root, text="REBOOT", width=self.buttonsize_x, height=self.buttonsize_y,
@@ -128,7 +132,7 @@ class touchCNC:
 
         self.files = Listbox(root, bg='white', fg='black',font=("Arial", 16))
         self.terminal = Entry(root,  text="GCODE", fg= 'white')
-        self.terminal_send = Button(root, text="SEND",  bd=3,command=lambda: self.directWrite('‘'))
+        self.terminal_send = Button(root, text="SEND",  bd=3,command=lambda: self.directWrite(self.terminal.get()))
 
         self.terminal_recv = Label(root, bg='white', fg='black', text="Message Type")
         self.terminal_recv_content = Label(root, bg='white', fg='black', width= 35, wraplength=200, anchor=constants.W, justify=LEFT)
@@ -163,73 +167,73 @@ class touchCNC:
                 gitter_y = self.mill_table.create_line(0, y, 400, y)
 
         self.movement.grid(row=0, column=0, columnspan=3, rowspan=1)
-        self.left.grid(row=1, column=0, padx=3, pady=2)
-        self.right.grid(row=1, column=2, padx=3, pady=2)
-        self.up.grid(row=0, column=1, padx=3, pady=self.pady_var)
-        self.down.grid(row=1, column=1, padx=3, pady=2)
-        self.z_up.grid(row=0, column=3, padx=10, pady=self.pady_var)
-        self.z_down.grid(row=1, column=3, padx=10, pady=2)
+        self.left.grid(row=1, column=0, padx=3, pady=2, sticky=self.stick_var)
+        self.right.grid(row=1, column=2, padx=3, pady=2, sticky=self.stick_var)
+        self.up.grid(row=0, column=1, padx=3, pady=self.pady_var , sticky=self.stick_var)
+        self.down.grid(row=1, column=1, padx=3, pady=2, sticky=self.stick_var)
+        self.z_up.grid(row=0, column=3, padx=10, pady=self.pady_var, sticky=self.stick_var)
+        self.z_down.grid(row=1, column=3, padx=10, pady=2, sticky=self.stick_var)
 
         self.step_incr2.select()
 
-        self.step_incr1.grid(row=2, column=0, padx=3, pady=self.pady_var)
-        self.step_incr2.grid(row=2, column=1, padx=3, pady=self.pady_var)
-        self.step_incr3.grid(row=2, column=2, padx=3, pady=self.pady_var)
-        self.step_incr4.grid(row=2, column=3, padx=3, pady=self.pady_var)
+        self.step_incr1.grid(row=2, column=0, padx=3, pady=self.pady_var, sticky=self.stick_var)
+        self.step_incr2.grid(row=2, column=1, padx=3, pady=self.pady_var, sticky=self.stick_var)
+        self.step_incr3.grid(row=2, column=2, padx=3, pady=self.pady_var, sticky=self.stick_var)
+        self.step_incr4.grid(row=2, column=3, padx=3, pady=self.pady_var, sticky=self.stick_var)
 
-        self.show_ctrl_x_label.grid(row=3, column=0, padx=3, pady=self.pady_var)
-        self.show_ctrl_y_label.grid(row=4, column=0, padx=3, pady=self.pady_var)
-        self.show_ctrl_z_label.grid(row=5, column=0, padx=3, pady=self.pady_var)
+        self.show_ctrl_x_label.grid(row=3, column=0, padx=3, pady=self.pady_var, sticky=self.stick_var)
+        self.show_ctrl_y_label.grid(row=4, column=0, padx=3, pady=self.pady_var, sticky=self.stick_var)
+        self.show_ctrl_z_label.grid(row=5, column=0, padx=3, pady=self.pady_var, sticky=self.stick_var)
 
-        self.show_ctrl_x.grid(row=3, column=1, padx=0, pady=0, columnspan=1)
-        self.show_ctrl_y.grid(row=4, column=1, padx=0, pady=0, columnspan=1)
-        self.show_ctrl_z.grid(row=5, column=1, padx=0, pady=0, columnspan=1)
-        self.show_ctrl_z.grid(row=5, column=1, padx=0, pady=0, columnspan=1)
+        self.show_ctrl_x.grid(row=3, column=1, padx=0, pady=0, columnspan=1, sticky=self.stick_var)
+        self.show_ctrl_y.grid(row=4, column=1, padx=0, pady=0, columnspan=1, sticky=self.stick_var)
+        self.show_ctrl_z.grid(row=5, column=1, padx=0, pady=0, columnspan=1, sticky=self.stick_var)
+        self.show_ctrl_z.grid(row=5, column=1, padx=0, pady=0, columnspan=1, sticky=self.stick_var)
 
-        self.show_ctrl_x_w.grid(row=3, column=2, padx=0, pady=0, columnspan=1)
-        self.show_ctrl_y_w.grid(row=4, column=2, padx=0, pady=0, columnspan=1)
-        self.show_ctrl_z_w.grid(row=5, column=2, padx=0, pady=0, columnspan=1)
+        self.show_ctrl_x_w.grid(row=3, column=2, padx=0, pady=0, columnspan=1, sticky=self.stick_var)
+        self.show_ctrl_y_w.grid(row=4, column=2, padx=0, pady=0, columnspan=1, sticky=self.stick_var)
+        self.show_ctrl_z_w.grid(row=5, column=2, padx=0, pady=0, columnspan=1, sticky=self.stick_var)
 
-        self.zero_x.grid(row=3, column=3)
-        self.zero_y.grid(row=4, column=3)
-        self.zero_z.grid(row=5, column=3)
-        self.zero_all.grid(row=6, column=3, padx=10, pady=self.pady_var)
+        self.zero_x.grid(row=3, column=3, sticky=self.stick_var)
+        self.zero_y.grid(row=4, column=3, sticky=self.stick_var)
+        self.zero_z.grid(row=5, column=3, sticky=self.stick_var)
+        self.zero_all.grid(row=6, column=3, padx=10, pady=self.pady_var, sticky=self.stick_var)
 
-        self.setzero.grid(row=6, column=0, padx=10, pady=self.pady_var)
-        self.gozero.grid(row=6, column=1, padx=10, pady=self.pady_var)
+        self.setzero.grid(row=6, column=0, padx=10, pady=self.pady_var, sticky=self.stick_var)
+        self.gozero.grid(row=6, column=1, padx=10, pady=self.pady_var, sticky=self.stick_var)
 
-        self.connect_ser.grid(row=7, column=0, padx=10, pady=self.pady_var)
-        self.discon_ser.grid(row=7, column=1, padx=10, pady=self.pady_var)
-        self.unlock.grid(row=8, column=9, padx=10, pady=self.pady_var)
-        self.start.grid(row=7, column=2, padx=10, pady=self.pady_var)
-        self.stop.grid(row=7, column=3, padx=10, pady=self.pady_var)
-        self.pause.grid(row=8, column=2, padx=10, pady=self.pady_var)
-        self.resume.grid(row=8, column=3, padx=10, pady=self.pady_var)
-        self.fopen.grid(row=8, column=0, padx=10, pady=self.pady_var)
-        self.fopendir.grid(row=8, column=1, padx=10, pady=self.pady_var)
+        self.connect_ser.grid(row=7, column=0, padx=10, pady=self.pady_var, sticky=self.stick_var)
+        self.discon_ser.grid(row=7, column=1, padx=10, pady=self.pady_var, sticky=self.stick_var)
+        self.unlock.grid(row=8, column=9, padx=10, pady=self.pady_var, sticky=self.stick_var)
+        self.start.grid(row=7, column=2, padx=10, pady=self.pady_var, sticky=self.stick_var)
+        self.stop.grid(row=7, column=3, padx=10, pady=self.pady_var, sticky=self.stick_var)
+        self.pause.grid(row=8, column=2, padx=10, pady=self.pady_var, sticky=self.stick_var)
+        self.resume.grid(row=8, column=3, padx=10, pady=self.pady_var, sticky=self.stick_var)
+        self.fopen.grid(row=8, column=0, padx=10, pady=self.pady_var, sticky=self.stick_var)
+        self.fopendir.grid(row=8, column=1, padx=10, pady=self.pady_var, sticky=self.stick_var)
 
-        self.spindle.grid(row=7, column=4, padx=1, pady=self.pady_var)
-        self.coolant.grid(row=7, column=5, padx=1, pady=self.pady_var)
-        self.tool.grid(row=7, column=6, padx=1, pady=self.pady_var)
-        self.macro.grid(row=7, column=7, padx=1, pady=self.pady_var)
+        self.spindle.grid(row=7, column=4, padx=1, pady=self.pady_var, sticky=self.stick_var)
+        self.coolant.grid(row=7, column=5, padx=1, pady=self.pady_var, sticky=self.stick_var)
+        self.tool.grid(row=7, column=6, padx=1, pady=self.pady_var, sticky=self.stick_var)
+        self.macro.grid(row=7, column=7, padx=1, pady=self.pady_var, sticky=self.stick_var)
 
-        self.dec10.grid(row=8, column=4, padx=1, pady=self.pady_var)
-        self.dec1.grid(row=8, column=5, padx=1, pady=self.pady_var)
-        self.inc1.grid(row=8, column=6, padx=1, pady=self.pady_var)
-        self.inc10.grid(row=8, column=7, padx=1, pady=self.pady_var)
+        self.dec10.grid(row=8, column=4, padx=1, pady=self.pady_var, sticky=self.stick_var)
+        self.dec1.grid(row=8, column=5, padx=1, pady=self.pady_var, sticky=self.stick_var)
+        self.inc1.grid(row=8, column=6, padx=1, pady=self.pady_var, sticky=self.stick_var)
+        self.inc10.grid(row=8, column=7, padx=1, pady=self.pady_var, sticky=self.stick_var)
 
-        self.reset.grid(row=8, column=8, padx=1, pady=self.pady_var)
-        self.reboot.grid(row=8, column=9, padx=1, pady=self.pady_var)
+        self.reset.grid(row=8, column=8, padx=10, pady=self.pady_var, sticky='W')
+        self.reboot.grid(row=8, column=9, padx=10, pady=self.pady_var)
 
-        self.terminal.grid(row=7, column=8, padx=10, pady=self.pady_var)
+        self.terminal.grid(row=7, column=8, padx=10, pady=self.pady_var, sticky='W')
         self.terminal_send.grid(row=7, column=9, padx=2, pady=self.pady_var)
 
-        self.files.grid(row=0, column=8, padx=10, pady=self.pady_var, rowspan=3, columnspan=2, sticky="nsew")
-        #self.terminal_recv.grid(row=3, column=8, padx=10, pady=self.pady_var, columnspan=2, sticky="nsew")
-        self.terminal_recv_content.grid(row=3, column=8, padx=10, pady=self.pady_var,rowspan=2, columnspan=2, sticky="nsew")
-        self.terminal_recv_progress.grid(row=5, column=8, padx=10, pady=self.pady_var, columnspan=2, sticky="nsew")
-        self.terminal_recv_feed.grid(row=6, column=8, padx=10, pady=self.pady_var, columnspan=2, sticky="nsew")
-        self.mill_table.grid(row=0, column=4, padx=10, pady=self.pady_var, columnspan=4, rowspan=7, sticky="nsew")
+        self.files.grid(row=0, column=8, padx=10, pady=self.pady_var, rowspan=3, columnspan=2, sticky=self.stick_var_disp)
+        #self.terminal_recv.grid(row=3, column=8, padx=10, pady=self.pady_var, columnspan=2, sticky=self.stick_var)
+        self.terminal_recv_content.grid(row=3, column=8, padx=10, pady=self.pady_var,rowspan=2, columnspan=2, sticky=self.stick_var_disp)
+        self.terminal_recv_progress.grid(row=5, column=8, padx=10, pady=self.pady_var, columnspan=2, sticky=self.stick_var_disp)
+        self.terminal_recv_feed.grid(row=6, column=8, padx=10, pady=self.pady_var, columnspan=2, sticky=self.stick_var_disp)
+        self.mill_table.grid(row=0, column=4, padx=10, pady=self.pady_var, columnspan=4, rowspan=7, sticky=self.stick_var_disp)
         self.cursor_id = None
 
         # BlockedButtons
@@ -265,18 +269,31 @@ class touchCNC:
         elif eventstring == "on_hash_stateupdate":
             #print("args", type(data[0]))
 
-            self.displayWorkPosition(data[0]["G28"])#
+            self.displayWorkPosition(data[0]["G28"])
+
         elif eventstring == "on_progress_percent":
             self.terminal_recv_progress.config(text=f"Job completion: {data[0]} %")
 
         elif eventstring == "on_feed_change":
             self.terminal_recv_feed.config(text=f"Feed: {data[0]} mm/min")
+            self.feedspeed = data[0]
 
         elif eventstring == "on_rx_buffer_percent":
             pass
 
-        elif eventstring == "on_processed_command":
-            pass
+        elif eventstring == "on_gcode_parser_stateupdate":
+            if len(data) > 9:
+                self.feedspeed = data[10]
+
+        elif eventstring == "on_read":
+            if data[0] == '$32=1':
+                self.macro.config(background=self.attention)
+
+            elif data[0] == '$32=0':
+                self.macro.config(background=self.loaded)
+
+        #elif eventstring == "on_processed_command":
+         #   pass
 
         elif eventstring == "on_line_sent":
             pass
@@ -285,15 +302,51 @@ class touchCNC:
             self.terminal_recv.config(text=eventstring)
             self.terminal_recv_content.config(text=data)
 
-    def grblConnect2(self):
-        grbl.cnect("/dev/ttyUSB0", 115200)  # or /dev/ttyACM0
-        time.sleep(2)
-        if grbl.connected:
-            grbl.poll_start()
-            self.connect_ser.config(bg = self.loaded)
+    import time
+    import logging
 
-        else:
-            print("wtf -couldnt start thread")
+    def grblConnect2(self, baudrate=115200, max_retries=5, retry_interval=3):
+        retry_count = 0
+        locations = ['/dev/ttyUSB0', '/dev/ttyACM0', '/dev/ttyUSB1', '/dev/ttyACM1', '/dev/ttyACM2', '/dev/ttyACM3',
+                     '/dev/ttyS0', '/dev/ttyS1', '/dev/ttyS2', '/dev/ttyS3']
+
+        # Configure logging
+        logging.basicConfig(level=logging.DEBUG)
+        logger = logging.getLogger(__name__)
+
+        if not grbl.connected:
+            for device in locations:
+                if retry_count < max_retries:
+                    try:
+                        logger.info(f"Attempting to connect to {device}")
+                        grbl.cnect(path=device, baudrate=baudrate)
+
+                        break
+
+                    except Exception as e:
+                        logger.error(f"Failed to connect to {device}: {e}")
+                        self.terminal_recv_content.config(text=f"Failed to connect to {device}: {e}")
+                        retry_count += 1
+                        time.sleep(retry_interval)
+
+                        logger.warning(f"Failed to connect after {max_retries} attempts.")
+
+                    finally:
+                        time.sleep(3)
+                        grbl.setup_logging()
+                        self.connect_ser.config(bg=self.loaded)
+                        #rbl.request_settings()
+                        logger.info(f"Connection successful to {device}")
+                        self.terminal_recv_content.config(text=f"Connection successful to {device}")
+                        grbl.connected = True
+                        grbl.poll_start()
+                        self.terminal_recv_content.config(text=f"State: {grbl.connected}")
+                        #grbl.set_feed_override(True)
+
+    def grblClose(self):
+        grbl.softreset()
+        grbl.disconnect()
+        self.connect_ser.config(bg=self.secondary)
 
     def displayWorkPosition(self, pos: list):
         #print("update", pos)
@@ -311,8 +364,13 @@ class touchCNC:
 
         grbl.send_immediately(grbl_command)
 
-    def directWrite(self,cmd):
+    def directWrite(self, cmd):
         grbl.send_immediately(cmd)
+
+    def feed_over_write(self, change: int):
+        new_feed = self.feedspeed / 100 * change
+        print(new_feed)
+        grbl.request_feed(new_feed)
 
     def latchWrite(self, CMD):
         if self.states[CMD] == '0':
@@ -343,7 +401,7 @@ class touchCNC:
 
     def get_grbl_command(self, CMD):
         if CMD == 'M3':
-            return 'M3 S1000' if self.states['M3'] == '1' else 'M3 S0'
+            return 'M3 S1000' if self.states['M3'] == '1' else 'M5'
 
         elif CMD == 'M8':
             return CMD if self.states[CMD] == '1' else 'M9'
@@ -367,6 +425,8 @@ class touchCNC:
             GCODE = self.load_gcode_from_listbox()
 
         if GCODE:
+            grbl.abort()
+            grbl.job_new()
             self.fopen.config(bg=self.loaded)
             extracted = self.extract_GCODE(GCODE)
             draw = DrawonTable(self.mill_table)
@@ -402,18 +462,23 @@ class touchCNC:
     def openDir(self):
         self.file_list = []
         directory = fd.askdirectory(title='Open a Folder', initialdir='/home/thomas/Nextcloud/CAM/')
-        print(directory)
+        #print(directory)
         allowed_extensions = {'nc', 'GCODE'}  # Use a set for efficient membership testing
+        print(directory)
 
-        filenames = self.get_filenames(directory)
-        self.files.delete(0, constants.END)
-        for file in filenames:
-            # Check if the file has an allowed extension
-            if any(file.lower().endswith(ext) for ext in allowed_extensions):
-                self.file_list.append(file)
-                self.files.insert("end", file)  # Add the filename to the Listbox
+        if directory:
+            filenames = self.get_filenames(directory)
+            self.files.delete(0, constants.END)
+            for file in filenames:
+                # Check if the file has an allowed extension
+                if any(file.lower().endswith(ext) for ext in allowed_extensions):
+                    self.file_list.append(file)
+                    self.files.insert("end", file)  # Add the filename to the Listbox
+        else:
+            print("Please select Folder")
+            self.terminal_recv_content.config(text="Please select Folder")
 
-        print(self.file_list)
+        #print(self.file_list)
     def load_gcode_from_listbox(self):
         selected_indices = self.files.curselection()
         if selected_indices:
@@ -471,9 +536,7 @@ class touchCNC:
 
             return list_dict_GCODE
 
-    def grblClose(self):
-        grbl.disconnect()
-        self.connect_ser.config(bg=self.secondary)
+
 
 class DrawonTable:
     def __init__(self, mill_table: object):
@@ -493,7 +556,7 @@ class DrawonTable:
         self.mill_table.delete('all')
 
     def drawToolCursor(self):
-        id = self.mill_table.create_text(50 + float(self.cursor_pos[0]), 345 - float(self.cursor_pos[1]), text='V', fill = 'red')
+        id = self.mill_table.create_text(50 + float(self.cursor_pos[0]), 342 - float(self.cursor_pos[1]), text='V', fill = 'red', font=("Arial", 16))
 
         return id
 
@@ -549,7 +612,6 @@ if __name__ == "__main__":
 
     app = touchCNC(root)
     grbl = Gerbil(app.gui_callback)
-    grbl.setup_logging()
     grbl.hash_state_requested = True
     grbl.gcode_parser_state_requested = True
 
