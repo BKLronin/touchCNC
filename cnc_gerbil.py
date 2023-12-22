@@ -5,8 +5,6 @@ from tkinter import filedialog as fd
 import os
 from gerbil.gerbil import Gerbil
 
-
-
 class touchCNC:
     def __init__(self, root):
         self.root = root
@@ -368,6 +366,7 @@ class touchCNC:
         grbl.send_immediately(cmd)
 
     def feed_over_write(self, change: int):
+        pass
         new_feed = self.feedspeed / 100 * change
         print(new_feed)
         grbl.request_feed(new_feed)
@@ -420,7 +419,7 @@ class touchCNC:
     def openGCODE(self):
         filetypes = (('GCODE', '*.nc'), ('All files', '*.*'))
         if not self.file_list:
-            GCODE = fd.askopenfilename(title='Open a file', initialdir='/home/thomas/Nextcloud/CAM/', filetypes=filetypes)
+            GCODE = fd.askopenfilename(title='Open a file', initialdir='/home/', filetypes=filetypes)
         else:
             GCODE = self.load_gcode_from_listbox()
 
@@ -439,8 +438,9 @@ class touchCNC:
         else:
             self.fopen.config(bg=self.secondary)
 
-    def get_filenames(self,base_path):
+    def get_filenames(self, base_path):
         filenames = []
+        full_path_list = []
 
         # Use os.listdir to get the list of files and directories in the base path
         entries = os.listdir(base_path)
@@ -452,8 +452,8 @@ class touchCNC:
 
                 # Check if the entry is a file (not a directory)
                 if os.path.isfile(full_path):
-                    # If it's a file, add it to the list of filenames
-                    filenames.append(entry)
+                    filenames.append(full_path)
+                    print(filenames)
         else:
             filenames = ["Such Empty"]
 
@@ -461,17 +461,19 @@ class touchCNC:
 
     def openDir(self):
         self.file_list = []
-        directory = fd.askdirectory(title='Open a Folder', initialdir='/home/thomas/Nextcloud/CAM/')
-        #print(directory)
+        self.path_list = []
+        directory = fd.askdirectory(title='Open a Folder', initialdir='/home/')
         allowed_extensions = {'nc', 'GCODE'}  # Use a set for efficient membership testing
-        print(directory)
 
         if directory:
-            filenames = self.get_filenames(directory)
+            path = self.get_filenames(directory)
+
             self.files.delete(0, constants.END)
-            for file in filenames:
+            for file in path:
                 # Check if the file has an allowed extension
                 if any(file.lower().endswith(ext) for ext in allowed_extensions):
+                    self.path_list.append(file)
+                    file = file.split('/')[-1]
                     self.file_list.append(file)
                     self.files.insert("end", file)  # Add the filename to the Listbox
         else:
@@ -480,10 +482,11 @@ class touchCNC:
 
         #print(self.file_list)
     def load_gcode_from_listbox(self):
+        """Loads selected file path from the listbox selection for passing it to the loaded indirectly"""
         selected_indices = self.files.curselection()
         if selected_indices:
             selected_index = selected_indices[0]
-            selected_item = self.files.get(selected_index)
+            selected_item = self.path_list[selected_index]
             print("Selected item:", selected_item)
         else:
             print("No item selected")
@@ -507,7 +510,9 @@ class touchCNC:
         grbl.killalarm()
 
     def extract_GCODE(self, gcode_path: str):  # Aufschlüsseln der enthaltenen Koordinaten in ein per Schlüssel zugängiges Dictionary
+        print(gcode_path)
         with open(gcode_path, 'r') as gcode:
+
             list_dict_GCODE = []
             for line in gcode:
                 lines = line.split()  # Elemente trennen und in Liste konvertieren
