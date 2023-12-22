@@ -1,0 +1,3 @@
+[submodule "gcode_machine"]
+	path = gcode_machine
+	url = https://github.com/michaelfranzl/gcode_machine.git
