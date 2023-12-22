@@ -21,6 +21,8 @@ Based on
 Python3
 tkinter
 pyserial
+gerbil
+gcodemachine
 
 In some cases you have to manually install tkinter via apt and pyserial via pip.
 
