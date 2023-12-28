@@ -21,7 +21,7 @@ class touchCNC:
         self.increments = 0
         self.BORDER = 2
         self.feedspeed = None
-        self.states = {'M3': '0', 'M8': '0', 'M6': '0', 'G10': '0', '32' :0}  # self.spindle, Coolant, Toolchange
+        self.states = {'M3': '0', 'M8': '0', 'M6': '0', 'G10': '0', '32' :'0'}  # self.spindle, Coolant, Toolchange
 
         self.dict_GCODE = {'G': '0',
                       'X': '0',
@@ -42,6 +42,14 @@ class touchCNC:
         self.standard = '#6DB1BF'  #F5F5F5'
         self.feed = self.secondary
         self.transport = '#FA7921'
+
+        # Classic Scheme
+        attention = 'red'
+        loaded = 'green'
+        cooling = 'blue'
+        toolchange = 'yellow'
+        standard = '#17223B'
+        feed = '#283B67'
 
         self.increments = IntVar()
         self.movement = Frame(root, relief='ridge', bd=self.BORDER, padx=10, pady=10)
@@ -343,6 +351,7 @@ class touchCNC:
 
     def grblClose(self):
         grbl.softreset()
+        print(grbl.connected)
         grbl.disconnect()
         self.connect_ser.config(bg=self.secondary)
 
