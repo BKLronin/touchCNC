@@ -24,19 +24,19 @@ Should run on any System wit at least 1024x600 Screen Resolution.
 `git clone https://github.com/BKLronin/touchCNC.git`
 
 ## Install 
-- (Create env)
-- In folder enter:
-`pip install requirements.txt`
+- (Create env)  
+- In folder enter:  
+`pip install requirements.txt`  
 
 ## Run 
-`python cnc_gerbil.py`
-or
-`cd dist`
-`./cnc_gerbil`
+- `python cnc_gerbil.py`  
+or  
+`cd dist`  
+`./cnc_gerbil`  
 
 ### Based on:
-Python3
-tkinter
-pyserial
-gerbil
+Python3  
+tkinter  
+pyserial  
+gerbil  
 
