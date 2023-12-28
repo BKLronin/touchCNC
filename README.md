@@ -13,9 +13,8 @@ Should run on any System wit at least 1024x600 Screen Resolution.
 - terminal
 - Laser status and switch
 
-
-![Screen](https://user-images.githubusercontent.com/6392076/133233601-8ef0e06f-e055-4677-8828-ed092aa37250.png)
-
+![Screen.png](Screen.png)
+- 
 - Tested on latest Armbian stable https://www.armbian.com/odroid-c2/#kernels-archive-all
 - Tested on Manjaro 
 - Using cncpro v3 with grbl1.1f
@@ -29,8 +28,8 @@ Should run on any System wit at least 1024x600 Screen Resolution.
 `pip install requirements.txt`  
 
 ## Run 
-- `python cnc_gerbil.py`  
-or  
+`python cnc_gerbil.py`    
+or    
 `cd dist`  
 `./cnc_gerbil`  
 
