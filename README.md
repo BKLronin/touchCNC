@@ -13,6 +13,7 @@ Should run on any System wit at least 1024x600 Screen Resolution.
 - terminal
 - Laser status and switch
 
+
 ![Screen](https://user-images.githubusercontent.com/6392076/133233601-8ef0e06f-e055-4677-8828-ed092aa37250.png)
 
 - Tested on latest Armbian stable https://www.armbian.com/odroid-c2/#kernels-archive-all

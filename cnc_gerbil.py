@@ -43,6 +43,7 @@ class touchCNC:
         self.feed = self.secondary
         self.transport = '#FA7921'
 
+
         # Classic Scheme
         attention = 'red'
         loaded = 'green'
