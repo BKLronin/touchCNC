@@ -1,3 +1,5 @@
 altgraph==0.17.4
+gcode-machine==1.0.3
+grbl-streamer==1.0.3
 numpy==1.26.2
 pyserial==3.5

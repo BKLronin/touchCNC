@@ -3,7 +3,8 @@ import time
 from tkinter import Button, Label, Variable, IntVar, Canvas, Frame, Listbox, Entry, Radiobutton, Tk, constants, LEFT
 from tkinter import filedialog as fd
 import os
-from gerbil.gerbil import Gerbil
+from grbl_streamer import GrblStreamer
+import settings
 
 class touchCNC:
     def __init__(self, root):
@@ -313,8 +314,7 @@ class touchCNC:
 
     def grblConnect2(self, baudrate=115200, max_retries=5, retry_interval=3):
         retry_count = 0
-        locations = ['/dev/ttyUSB0', '/dev/ttyACM0', '/dev/ttyUSB1', '/dev/ttyACM1', '/dev/ttyACM2', '/dev/ttyACM3',
-                     '/dev/ttyS0', '/dev/ttyS1', '/dev/ttyS2', '/dev/ttyS3']
+        locations = settings.portlist
 
         # Configure logging
         logging.basicConfig(level=logging.DEBUG)
@@ -409,13 +409,13 @@ class touchCNC:
 
     def get_grbl_command(self, CMD):
         if CMD == 'M3':
-            return 'M3 S1000' if self.states['M3'] == '1' else 'M5'
+            return settings.spindle_on if self.states['M3'] == '1' else settings.spindle_off
 
         elif CMD == 'M8':
-            return CMD if self.states[CMD] == '1' else 'M9'
+            return settings.cooling_on if self.states[CMD] == '1' else settings.cooling_off
 
         elif CMD == 'G10':
-            return 'G10 P0 L20 X0 Y0 Z0'
+            return settings.toolchange
 
         elif CMD == '32':
             return '$32=0' if self.states['32'] == '1' else '$32=1'
@@ -428,7 +428,7 @@ class touchCNC:
     def openGCODE(self):
         filetypes = (('GCODE', '*.nc'), ('All files', '*.*'))
         if not self.file_list:
-            GCODE = fd.askopenfilename(title='Open a file', initialdir='/home/', filetypes=filetypes)
+            GCODE = fd.askopenfilename(title='Open a file', initialdir=settings.basepath, filetypes=filetypes)
         else:
             GCODE = self.load_gcode_from_listbox()
 
@@ -471,7 +471,7 @@ class touchCNC:
     def openDir(self):
         self.file_list = []
         self.path_list = []
-        directory = fd.askdirectory(title='Open a Folder', initialdir='/home/')
+        directory = fd.askdirectory(title='Open a Folder', initialdir=settings.basepath)
         allowed_extensions = {'nc', 'GCODE'}  # Use a set for efficient membership testing
 
         if directory:
@@ -602,7 +602,7 @@ class DrawonTable:
         self.mill_table.delete('all')
 
         self.mill_table.create_rectangle(50, 50, 350, 350, fill='white')
-        self.mill_table.create_text(200, 25, text='Fräsbereich 300mm x 300mm')
+        self.mill_table.create_text(200, 25, text=settings.table_text)
 
         for x in range(50, 350, 50):
             self.mill_table.create_text(x, 400 - x, text=x - 50)
@@ -616,16 +616,15 @@ class DrawonTable:
 if __name__ == "__main__":
     root = Tk()
     root.title('touchCNC')
-    root.geometry('1024x600+0+0')
+    root.geometry(settings.resolution)
     root.grid_propagate(True)
     root.resizable(False, False)  # 17203b
-    root.attributes('-fullscreen', False)
+    root.attributes('-fullscreen', settings.set_fullscreen)
     root.tk_setPalette(background='#4B4A67', foreground='black', activeBackground='#F99417',
                        activeForeground='lightgrey')
 
-
     app = touchCNC(root)
-    grbl = Gerbil(app.gui_callback)
+    grbl = GrblStreamer(app.gui_callback)
     grbl.hash_state_requested = True
     grbl.gcode_parser_state_requested = True
 
