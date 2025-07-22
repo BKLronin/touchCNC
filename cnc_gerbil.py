@@ -90,7 +90,7 @@ class touchCNC:
                         bd=self.BORDER)
         self.start = Button(root, text="START", width=self.buttonsize_x, height=self.buttonsize_y, bg=self.attention,
                        command=self.grblWrite, bd=self.BORDER)
-        self.stop = Button(root, text="STOP", width=self.buttonsize_x, height=self.buttonsize_y, bd=self.BORDER, bg=self.transport,
+        self.stop = Button(root, text="STOP", width=self.buttonsize_x, height=self.buttonsize_y, bd=self.BORDER, bg=self.transport,\n        command=self.reset_block_state)
                       command=self.grblStop)
         self.pause = Button(root, text="PAUSE", width=self.buttonsize_x, height=self.buttonsize_y, bd=self.BORDER, bg=self.transport,
                        command=self.grblPause)
